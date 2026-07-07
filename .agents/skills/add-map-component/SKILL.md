@@ -7,7 +7,7 @@ description: Add a new UI component to the @techtraverse/map-ui-lib library (pac
 
 ## Why this skill exists
 
-`packages/map-ui-lib` is an internal workspace package (`@techtraverse/map-ui-lib`) consumed by `apps/map-client` and `apps/admin-app` within this monorepo. It is NOT published to npm. It has strict rules that exist for real reasons — violating them silently breaks downstream consumers in ways the type checker won't catch. This skill keeps new components consistent with the ~30 existing ones and the rules in `CLAUDE.md`.
+`packages/map-ui-lib` is an internal workspace package (`@techtraverse/map-ui-lib`) consumed by `apps/map-client` and `apps/admin-app` within this monorepo. It is NOT published to npm. It has strict rules that exist for real reasons — violating them silently breaks downstream consumers in ways the type checker won't catch. This skill keeps new components consistent with the ~30 existing ones and the rules in `AGENTS.md`.
 
 ## The non-negotiables (and why)
 

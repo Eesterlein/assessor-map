@@ -44,6 +44,13 @@ describe('buildSourceUrlMap', () => {
     expect(map['wmts-1'].tileUrlTemplate).toContain('MODIS_Terra_CorrectedReflectance_TrueColor');
   });
 
+  it('carries a WMTS source-level maxZoom through to the entry', () => {
+    const withMax: MapSource = { ...(wmts as object), maxZoom: 19 } as MapSource;
+    const map = buildSourceUrlMap([withMax]);
+    expect(map['wmts-1'].maxZoom).toBe(19);
+    expect(buildSourceUrlMap([wmts])['wmts-1'].maxZoom).toBeUndefined();
+  });
+
   it('honors a pre-supplied tileUrlTemplate override on a WMTS source', () => {
     const overridden: MapSource = { ...(wmts as object), tileUrlTemplate: 'https://override/{z}/{y}/{x}.png' } as MapSource;
     const map = buildSourceUrlMap([overridden]);

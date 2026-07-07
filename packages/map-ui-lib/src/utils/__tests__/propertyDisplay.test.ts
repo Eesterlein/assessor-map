@@ -52,4 +52,35 @@ describe('resolvePropertyDisplay', () => {
     });
     expect(result?.fields).toEqual(['name']);
   });
+
+  it('sorts fields by explicit order regardless of key order', () => {
+    const result = resolvePropertyDisplay({
+      acres: { order: 2 },
+      owner: { order: 0 },
+      zone: { order: 1 },
+    });
+    expect(result?.fields).toEqual(['owner', 'zone', 'acres']);
+  });
+
+  it('puts entries without order after ordered ones, in key order', () => {
+    const result = resolvePropertyDisplay({
+      legacy_b: {},
+      ordered_late: { order: 5 },
+      legacy_a: {},
+      ordered_early: { order: 1 },
+    });
+    expect(result?.fields).toEqual(['ordered_early', 'ordered_late', 'legacy_b', 'legacy_a']);
+  });
+
+  it('keeps labels and visibility working alongside order', () => {
+    const result = resolvePropertyDisplay({
+      hidden: { visible: false, order: 0 },
+      second: { label: 'Second', order: 2 },
+      first: { label: 'First', order: 1 },
+    });
+    expect(result).toEqual({
+      fields: ['first', 'second'],
+      labels: { first: 'First', second: 'Second' },
+    });
+  });
 });

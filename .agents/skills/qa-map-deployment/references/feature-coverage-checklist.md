@@ -163,6 +163,6 @@ For each item: open the panel, perform the action, observe expected outcome. Fai
 | X1 | Console silence | Zero errors during normal flow (the `/api/auth/me` 401 on the admin login page is expected) | major if errors observed |
 | X2 | Network panel | No 4xx/5xx during normal flow (other than expected 404s on `/api/configs/default` when no default is set) | major |
 | X3 | CORS | No CORS errors when map-client calls tipg | critical |
-| X4 | Vector tile re-fetch on filter change | URL of MVT requests changes when CQL2 filter changes (per CLAUDE.md `getVectorTileSourceKey` rule) | major |
+| X4 | Vector tile re-fetch on filter change | URL of MVT requests changes when CQL2 filter changes (per AGENTS.md `getVectorTileSourceKey` rule) | major |
 
 Items M5–M24 cannot be tested if M1 fails. That's the right reason to mark them "blocked" in the report — not "skipped".

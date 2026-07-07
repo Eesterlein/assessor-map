@@ -85,6 +85,10 @@ export const WmtsSourceSchema = z.object({
   format: z.string().default('image/png'),
   tileMatrixSet: z.string().default('WebMercatorQuad'),
   tileSize: z.number().int().positive().default(256),
+  // Deepest zoom the server has native tiles for. Applied to the raster
+  // *source* so MapLibre overzooms past it instead of fetching blank tiles;
+  // distinct from imagery-layer maxZoom, which hides the layer.
+  maxZoom: z.number().min(0).max(24).optional(),
   tileUrlTemplate: z.string().optional(),
   label: z.string().optional(),
   auth: SourceAuthSchema.optional(),
@@ -421,6 +425,10 @@ export const GlobalSearchConfigSchema = z.object({
 export const PropertyDisplaySchema = z.object({
   label: z.string().optional(),
   visible: z.boolean().optional().default(true),
+  // Explicit display position. Key order alone is not reliable: the admin DB
+  // stores config as jsonb, which normalizes object key order. Entries
+  // without `order` sort after ordered ones, in key order.
+  order: z.number().int().min(0).optional(),
 });
 
 export const PropertyDisplayConfigSchema = z.record(z.string(), PropertyDisplaySchema);

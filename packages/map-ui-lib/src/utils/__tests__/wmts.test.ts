@@ -5,6 +5,7 @@ import {
   parseWmtsCapabilities,
   fetchWmtsCapabilities,
   resolveWmtsTileUrlTemplate,
+  resolveWmtsMaxZoom,
   isOgcApiSource,
   isWmtsSource,
   isImagerySource,
@@ -347,5 +348,113 @@ describe('resolveWmtsTileUrlTemplate', () => {
     expect(
       resolveWmtsTileUrlTemplate(layer, { style: 'default', tileMatrixSet: 'WebMercatorQuad' }),
     ).toBeNull();
+  });
+});
+
+describe('parseWmtsCapabilities — TileMatrixSet depth', () => {
+  const matrixEntries = (max: number) =>
+    Array.from({ length: max + 1 }, (_, z) => `<TileMatrix><ows:Identifier>${z}</ows:Identifier></TileMatrix>`).join('');
+
+  const vexcelLike = `<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1">
+  <Contents>
+    <Layer>
+      <ows:Identifier>bluesky-high</ows:Identifier>
+      <Style><ows:Identifier>RGB</ows:Identifier></Style>
+      <Format>image/png</Format>
+      <TileMatrixSetLink><TileMatrixSet>bluesky-high</TileMatrixSet></TileMatrixSetLink>
+    </Layer>
+    <TileMatrixSet>
+      <ows:Identifier>bluesky-high</ows:Identifier>
+      ${matrixEntries(19)}
+    </TileMatrixSet>
+  </Contents>
+</Capabilities>`;
+
+  it('extracts maxZoom from a per-layer matrix set (Vexcel-shaped)', () => {
+    const caps = parseWmtsCapabilities(vexcelLike);
+    expect(caps.tileMatrixSets['bluesky-high']).toBe(19);
+  });
+
+  it('takes the numeric tail of prefixed identifiers like EPSG:3857:14', () => {
+    const caps = parseWmtsCapabilities(`<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1">
+  <Contents>
+    <TileMatrixSet>
+      <ows:Identifier>EPSG3857</ows:Identifier>
+      <TileMatrix><ows:Identifier>EPSG:3857:0</ows:Identifier></TileMatrix>
+      <TileMatrix><ows:Identifier>EPSG:3857:14</ows:Identifier></TileMatrix>
+    </TileMatrixSet>
+  </Contents>
+</Capabilities>`);
+    expect(caps.tileMatrixSets['EPSG3857']).toBe(14);
+  });
+
+  it('leaves maxZoom undefined when identifiers are not zoom-like', () => {
+    const caps = parseWmtsCapabilities(`<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1">
+  <Contents>
+    <TileMatrixSet>
+      <ows:Identifier>weird</ows:Identifier>
+      <TileMatrix><ows:Identifier>coarse</ows:Identifier></TileMatrix>
+      <TileMatrix><ows:Identifier>fine</ows:Identifier></TileMatrix>
+    </TileMatrixSet>
+  </Contents>
+</Capabilities>`);
+    expect(caps.tileMatrixSets['weird']).toBeUndefined();
+  });
+
+  it('captures per-layer TileMatrixSetLimits depth', () => {
+    const caps = parseWmtsCapabilities(`<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1">
+  <Contents>
+    <Layer>
+      <ows:Identifier>limited</ows:Identifier>
+      <Style><ows:Identifier>default</ows:Identifier></Style>
+      <Format>image/png</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>bluesky-high</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits><TileMatrix>0</TileMatrix></TileMatrixLimits>
+          <TileMatrixLimits><TileMatrix>17</TileMatrix></TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+    </Layer>
+    <TileMatrixSet>
+      <ows:Identifier>bluesky-high</ows:Identifier>
+      ${matrixEntries(19)}
+    </TileMatrixSet>
+  </Contents>
+</Capabilities>`);
+    expect(caps.layers[0].tileMatrixSetLimits).toEqual({ 'bluesky-high': 17 });
+  });
+});
+
+describe('resolveWmtsMaxZoom', () => {
+  const limited: WmtsLayer = {
+    id: 'limited',
+    styles: ['default'],
+    tileMatrixSets: ['bluesky-high'],
+    formats: ['image/png'],
+    tileMatrixSetLimits: { 'bluesky-high': 17 },
+  };
+  const unlimited: WmtsLayer = {
+    id: 'unlimited',
+    styles: ['default'],
+    tileMatrixSets: ['bluesky-high'],
+    formats: ['image/png'],
+  };
+  const tileMatrixSets = { 'bluesky-high': 19 };
+
+  it('prefers the layer TileMatrixSetLimits over the set depth', () => {
+    expect(resolveWmtsMaxZoom(limited, tileMatrixSets, 'bluesky-high')).toBe(17);
+  });
+
+  it('falls back to the matrix set depth when the layer has no limits', () => {
+    expect(resolveWmtsMaxZoom(unlimited, tileMatrixSets, 'bluesky-high')).toBe(19);
+  });
+
+  it('returns undefined for an unknown matrix set', () => {
+    expect(resolveWmtsMaxZoom(unlimited, tileMatrixSets, 'nope')).toBeUndefined();
   });
 });

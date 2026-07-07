@@ -21,7 +21,7 @@ import {
 } from '@techtraverse/map-ui-lib';
 import { safeValidateMapConfig, DEFAULT_HEADER_COLOR } from '@techtraverse/map-ui-lib/schemas';
 import { detectTileSourceType, isOgcApiSource, isImagerySource } from '@techtraverse/map-ui-lib/utils';
-import { savedSourceToWmts, savedSourceIsImagery } from '../utils/wmtsSource';
+import { savedSourceToWmts, savedSourceIsImagery, type WmtsSourceMetadata } from '../utils/wmtsSource';
 import type {
   OgcApiSource,
   WmtsSource,
@@ -68,7 +68,7 @@ const INFO_POSITION_OPTIONS = INFO_POSITIONS.map((pos) => ({
   label: pos.replace('-', ' ').replace(/^./, (c) => c.toUpperCase()),
 }));
 
-interface SavedSourceSummary { id: string; source_id: string; url: string; label: string | null; tile_matrix_set_id: string; source_type?: string; auth?: SourceAuth | null; metadata?: { thumbnail?: string; tileJson?: { tiles: string[]; name?: string; minzoom?: number; maxzoom?: number }; wmtsLayer?: string; wmtsStyle?: string; wmtsFormat?: string; wmtsTileMatrixSet?: string; wmtsTileSize?: number; wmtsTileUrlTemplate?: string } | null }
+interface SavedSourceSummary { id: string; source_id: string; url: string; label: string | null; tile_matrix_set_id: string; source_type?: string; auth?: SourceAuth | null; metadata?: (WmtsSourceMetadata & { thumbnail?: string; tileJson?: { tiles: string[]; name?: string; minzoom?: number; maxzoom?: number } }) | null }
 
 type WizardStep = 'metadata' | 'info' | 'layers' | 'search-display' | 'imagery' | 'basemaps' | 'ui' | 'view' | 'review';
 

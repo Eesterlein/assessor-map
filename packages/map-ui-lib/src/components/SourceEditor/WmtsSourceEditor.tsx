@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { WmtsSource, SourceAuth } from '../../types';
 import { FormField } from '../admin/FormField';
 import { useWmtsCapabilities } from '../../hooks/useWmtsCapabilities';
-import { resolveWmtsTileUrlTemplate } from '../../utils/wmts';
+import { resolveWmtsMaxZoom, resolveWmtsTileUrlTemplate } from '../../utils/wmts';
 
 export interface WmtsSourceEditorProps {
   value: WmtsSource;
@@ -25,21 +25,29 @@ export function WmtsSourceEditor({ value, onChange }: WmtsSourceEditorProps) {
   const selectedLayer = capabilities?.layers.find((l) => l.id === value.layer);
 
   // Once capabilities are loaded, resolve the layer's advertised tile ResourceURL
-  // into a concrete `tileUrlTemplate` (filling {TileMatrixSet}/{Style}/{Time}/…).
-  // The renderer prefers this over hand-building the URL. When capabilities aren't
-  // loaded (editing an existing source before "Fetch Layers"), leave any stored
-  // template untouched. Intentionally omits `value.tileUrlTemplate`/`onChange` from
-  // deps — the equality guard prevents an update loop.
+  // into a concrete `tileUrlTemplate` (filling {TileMatrixSet}/{Style}/{Time}/…)
+  // and the native max zoom from the matrix set depth. The renderer prefers these
+  // over hand-building the URL / guessing depth. When capabilities aren't loaded
+  // (editing an existing source before "Fetch Layers"), leave stored values
+  // untouched. Intentionally omits `value.tileUrlTemplate`/`value.maxZoom`/`onChange`
+  // from deps — the equality guards prevent update loops and let a manual maxZoom
+  // edit stick until the layer/style/tms/format selection changes.
   useEffect(() => {
-    if (!selectedLayer) return;
+    if (!selectedLayer || !capabilities) return;
     const resolved = resolveWmtsTileUrlTemplate(selectedLayer, {
       style: value.style,
       tileMatrixSet: value.tileMatrixSet,
       format: value.format,
     });
-    if (resolved && resolved !== value.tileUrlTemplate) {
-      update({ tileUrlTemplate: resolved });
-    }
+    const nativeMaxZoom = resolveWmtsMaxZoom(
+      selectedLayer,
+      capabilities.tileMatrixSets,
+      value.tileMatrixSet,
+    );
+    const patch: Partial<WmtsSource> = {};
+    if (resolved && resolved !== value.tileUrlTemplate) patch.tileUrlTemplate = resolved;
+    if (nativeMaxZoom !== undefined && nativeMaxZoom !== value.maxZoom) patch.maxZoom = nativeMaxZoom;
+    if (Object.keys(patch).length > 0) update(patch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLayer, value.style, value.tileMatrixSet, value.format]);
 
@@ -235,6 +243,24 @@ export function WmtsSourceEditor({ value, onChange }: WmtsSourceEditorProps) {
           placeholder="256"
           className={inputClass}
         />
+      </FormField>
+
+      <FormField label="Native Max Zoom">
+        <input
+          type="number"
+          min={0}
+          max={24}
+          value={value.maxZoom ?? ''}
+          onChange={(e) =>
+            update({ maxZoom: e.target.value === '' ? undefined : Number(e.target.value) })
+          }
+          placeholder="e.g. 19"
+          className={inputClass}
+        />
+        <p className="mapui:mt-1 mapui:text-xs mapui:text-slate-500">
+          Deepest zoom with real tiles; the map overzooms beyond it. Auto-filled from
+          capabilities.
+        </p>
       </FormField>
 
       <FormField label="Authentication">

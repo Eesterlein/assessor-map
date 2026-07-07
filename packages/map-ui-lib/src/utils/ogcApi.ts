@@ -602,6 +602,17 @@ export function getVectorTileSourceKey(layerId: string, cql2Filter?: CQL2Express
 }
 
 /**
+ * Build a stable source key for a raster imagery layer, incorporating the
+ * source-level native max zoom. MapLibre can't update `maxzoom` on a live
+ * raster source, so when it changes the key must change to force a remount.
+ * Deliberately excludes layer-level maxZoom: that only affects the `<Layer>`
+ * (hide semantics), which updates live without a source remount.
+ */
+export function getRasterImagerySourceKey(sourceId: string, sourceMaxZoom?: number): string {
+  return sourceMaxZoom != null ? `${sourceId}--mz${sourceMaxZoom}` : sourceId;
+}
+
+/**
  * Build a MapLibre geometry-type filter expression for restricting which
  * geometry types a layer renders.
  */

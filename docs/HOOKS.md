@@ -642,7 +642,7 @@ function resolvePropertyDisplay(
 ): { fields: string[]; labels: Record<string, string> } | undefined
 ```
 
-Transforms a `PropertyDisplayConfig` into a resolved form with a flat list of visible field names and a label map. Filters out entries with `visible: false`. Returns `undefined` if input is `undefined` (meaning "show all properties with default labels").
+Transforms a `PropertyDisplayConfig` into a resolved form with a flat list of visible field names and a label map. Filters out entries with `visible: false` and sorts by each entry's `order` (entries without `order` follow ordered ones, in key order). Returns `undefined` if input is `undefined` (meaning "show all properties with default labels").
 
 Use this utility when rendering feature properties to respect the layer's `propertyDisplay` configuration.
 

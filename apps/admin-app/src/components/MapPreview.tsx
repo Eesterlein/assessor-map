@@ -5,6 +5,7 @@ import { useOgcFeatures, useExport, useHeaderAuthTransformRequest, useVectorSour
 import {
   getCql2FilteredVectorTileUrl,
   getImageryTileUrl,
+  getRasterImagerySourceKey,
   DEFAULT_EXPORT_FORMATS,
   fromStructuredFilters,
   resolvePropertyDisplay,
@@ -256,24 +257,30 @@ function PreviewRasterImageryLayer({
   tileMatrixSetId,
   auth,
   sourceTileUrlTemplate,
+  sourceMaxZoom,
 }: {
   layer: ImageryLayerConfig;
   sourceUrl: string;
   tileMatrixSetId?: string;
   auth?: SourceAuth;
   sourceTileUrlTemplate?: string;
+  /** Deepest native zoom of the source; MapLibre overzooms past it instead of fetching blank tiles. */
+  sourceMaxZoom?: number;
 }) {
   const template = sourceTileUrlTemplate ?? layer.tileUrlTemplate;
   const tileUrl = getImageryTileUrl(sourceUrl, layer.collection, tileMatrixSetId, template, auth);
+  // Source maxzoom caps tile *requests* (overzoom); the Layer keeps its own
+  // maxzoom, which *hides* rendering — two different behaviors, don't merge.
+  const requestMaxzoom = sourceMaxZoom ?? layer.maxZoom;
   return (
     <Source
       id={`imagery-${layer.id}`}
-      key={`imagery-${layer.id}`}
+      key={getRasterImagerySourceKey(`imagery-${layer.id}`, sourceMaxZoom)}
       type="raster"
       tiles={[tileUrl]}
       tileSize={layer.tileSize ?? 256}
       {...(layer.minZoom != null ? { minzoom: layer.minZoom } : {})}
-      {...(layer.maxZoom != null ? { maxzoom: layer.maxZoom } : {})}
+      {...(requestMaxzoom != null ? { maxzoom: requestMaxzoom } : {})}
     >
       <Layer
         id={`imagery-${layer.id}`}
@@ -1206,6 +1213,7 @@ export function MapPreview({
               tileMatrixSetId={sourceInfo?.tileMatrixSetId}
               auth={sourceInfo?.auth}
               sourceTileUrlTemplate={sourceInfo?.tileUrlTemplate}
+              sourceMaxZoom={sourceInfo?.maxZoom}
             />
           );
         })}

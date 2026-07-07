@@ -5,7 +5,7 @@ import { detectTileSourceType, appendAuth, authHeaders } from '@techtraverse/map
 import { SourceMetadataPanel } from '../components/SourceMetadataPanel';
 import type { InspectionResult } from '../components/SourceMetadataPanel';
 import { inspectSourceClientSide } from '../utils/inspectSource';
-import { savedSourceToWmts, savedSourceIsImagery } from '../utils/wmtsSource';
+import { savedSourceToWmts, savedSourceIsImagery, wmtsSourceToSavedFields, type WmtsSourceMetadata } from '../utils/wmtsSource';
 
 // WMTS is folded into the Imagery tab (it is intrinsically raster imagery);
 // individual rows are distinguished by their `source_type` of 'wmts'.
@@ -17,13 +17,7 @@ const TAB_LABELS: Record<SourceTab, string> = {
   basemap: 'Basemaps',
 };
 
-interface WmtsMetadata {
-  wmtsLayer?: string;
-  wmtsStyle?: string;
-  wmtsFormat?: string;
-  wmtsTileMatrixSet?: string;
-  wmtsTileSize?: number;
-}
+type WmtsMetadata = WmtsSourceMetadata;
 
 type BasemapMode = 'style-url' | 'from-imagery';
 
@@ -601,23 +595,7 @@ export function SourcesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          source_id: newWmtsSource.id,
-          url: newWmtsSource.capabilitiesUrl,
-          label: newWmtsSource.label || null,
-          tile_matrix_set_id: newWmtsSource.tileMatrixSet || 'WebMercatorQuad',
-          source_type: 'wmts',
-          auth: newWmtsSource.auth ?? null,
-          proxy: newWmtsSource.proxy ?? false,
-          metadata: {
-            wmtsLayer: newWmtsSource.layer,
-            wmtsStyle: newWmtsSource.style,
-            wmtsFormat: newWmtsSource.format,
-            wmtsTileMatrixSet: newWmtsSource.tileMatrixSet,
-            wmtsTileSize: newWmtsSource.tileSize,
-            wmtsTileUrlTemplate: newWmtsSource.tileUrlTemplate,
-          },
-        }),
+        body: JSON.stringify(wmtsSourceToSavedFields(newWmtsSource)),
       });
       if (!res.ok) {
         const data = await res.json() as { error: string };
@@ -644,23 +622,7 @@ export function SourcesPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          source_id: editingWmtsSource.id,
-          url: editingWmtsSource.capabilitiesUrl,
-          label: editingWmtsSource.label || null,
-          tile_matrix_set_id: editingWmtsSource.tileMatrixSet || 'WebMercatorQuad',
-          source_type: 'wmts',
-          auth: editingWmtsSource.auth ?? null,
-          proxy: editingWmtsSource.proxy ?? false,
-          metadata: {
-            wmtsLayer: editingWmtsSource.layer,
-            wmtsStyle: editingWmtsSource.style,
-            wmtsFormat: editingWmtsSource.format,
-            wmtsTileMatrixSet: editingWmtsSource.tileMatrixSet,
-            wmtsTileSize: editingWmtsSource.tileSize,
-            wmtsTileUrlTemplate: editingWmtsSource.tileUrlTemplate,
-          },
-        }),
+        body: JSON.stringify(wmtsSourceToSavedFields(editingWmtsSource)),
       });
       if (!res.ok) {
         const data = await res.json() as { error: string };

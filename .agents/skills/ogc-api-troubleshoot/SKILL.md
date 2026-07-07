@@ -153,4 +153,4 @@ curl -s 'http://localhost:8001/collections/<id>/items?bbox=-180,-90,180,90&limit
 - `docker-compose.yml` — the source of truth for service names, ports, and env vars.
 - `docker/gateway/nginx.conf` — how requests are routed when going through `localhost`.
 - `docker/seed/seed.sh` and `docker/seed/load-shapefiles.sh` — what the seed container actually does.
-- The CLAUDE.md note: "Restart tipg with `docker restart techtraverse-tipg` if collections don't appear" — that's the headline fix and worth trying early.
+- The AGENTS.md note: "Restart tipg with `docker restart techtraverse-tipg` if collections don't appear" — that's the headline fix and worth trying early.

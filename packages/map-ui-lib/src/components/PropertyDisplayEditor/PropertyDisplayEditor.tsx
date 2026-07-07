@@ -1,4 +1,5 @@
 import type { PropertyDisplayConfig, AvailableProperty } from '../../types';
+import { sortedPropertyDisplayEntries } from '../../utils/propertyDisplay';
 import { FormField } from '../admin/FormField';
 
 export interface PropertyDisplayEditorProps {
@@ -10,7 +11,7 @@ export interface PropertyDisplayEditorProps {
 export type PropertyEntry = { key: string; label: string; visible: boolean };
 
 export function toEntries(config: PropertyDisplayConfig): PropertyEntry[] {
-  return Object.entries(config).map(([key, val]) => ({
+  return sortedPropertyDisplayEntries(config).map(([key, val]) => ({
     key,
     label: val.label ?? '',
     visible: val.visible ?? true,
@@ -19,12 +20,13 @@ export function toEntries(config: PropertyDisplayConfig): PropertyEntry[] {
 
 export function fromEntries(entries: PropertyEntry[]): PropertyDisplayConfig {
   const result: PropertyDisplayConfig = {};
-  for (const entry of entries) {
+  entries.forEach((entry, index) => {
     result[entry.key] = {
       visible: entry.visible,
+      order: index,
       ...(entry.label ? { label: entry.label } : {}),
     };
-  }
+  });
   return result;
 }
 

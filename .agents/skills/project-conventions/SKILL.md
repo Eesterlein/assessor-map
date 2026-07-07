@@ -1,13 +1,13 @@
 ---
 name: project-conventions
-description: The non-negotiable architectural rules for the map-traverse / techtraverse monorepo, with the *why* behind each. Use this skill at the start of any non-trivial code change in this repo — before adding components, hooks, store fields, URL params, schema fields, app routes, or anything that crosses the lib/app boundary. Also use it whenever the user asks "how should I structure X", "where should this code live", "is this the right pattern", or seems about to violate one of the rules in CLAUDE.md or .cursorrules. The rules look like preferences but each one exists because violating it caused a real bug in the past. Reading this skill before writing code is much cheaper than discovering the rule during PR review.
+description: The non-negotiable architectural rules for the map-traverse / techtraverse monorepo, with the *why* behind each. Use this skill at the start of any non-trivial code change in this repo — before adding components, hooks, store fields, URL params, schema fields, app routes, or anything that crosses the lib/app boundary. Also use it whenever the user asks "how should I structure X", "where should this code live", "is this the right pattern", or seems about to violate one of the rules in AGENTS.md. The rules look like preferences but each one exists because violating it caused a real bug in the past. Reading this skill before writing code is much cheaper than discovering the rule during PR review.
 ---
 
 # Project Conventions
 
 ## Why this skill exists
 
-This is an AI-first project: any contributor — human or model — should be able to land a change that respects the architecture without needing to read the whole codebase first. The rules below are checked in `CLAUDE.md` and `.cursorrules` as terse bullet lists, but a list of "do this, don't do that" doesn't survive contact with a real task. This skill is the long-form version, with the *why*, so that when a rule and a goal seem to conflict, you can reason about which constraint is actually load-bearing.
+This is an AI-first project: any contributor — human or model — should be able to land a change that respects the architecture without needing to read the whole codebase first. The rules below are checked in `AGENTS.md` as terse bullet lists, but a list of "do this, don't do that" doesn't survive contact with a real task. This skill is the long-form version, with the *why*, so that when a rule and a goal seem to conflict, you can reason about which constraint is actually load-bearing.
 
 If you're about to write code in this repo and you haven't read this skill yet, stop and read it. It takes two minutes and prevents most of the rework that happens at PR time.
 

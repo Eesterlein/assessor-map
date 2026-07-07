@@ -12,6 +12,7 @@ import {
   getImageryTileUrl,
   getTileJsonUrl,
   getVectorTileSourceKey,
+  getRasterImagerySourceKey,
   fetchCollections,
   fetchFeatures,
   fetchFeatureById,
@@ -311,6 +312,18 @@ describe('getVectorTileSourceKey', () => {
     const filter = { op: '=' as const, args: [{ property: 'status' }, 'active'] };
     const key = getVectorTileSourceKey('roads', filter);
     expect(key).toBe(`roads--${JSON.stringify(filter)}`);
+  });
+});
+
+describe('getRasterImagerySourceKey', () => {
+  it('returns the source id when no source maxZoom is set', () => {
+    expect(getRasterImagerySourceKey('imagery-vexcel')).toBe('imagery-vexcel');
+    expect(getRasterImagerySourceKey('imagery-vexcel', undefined)).toBe('imagery-vexcel');
+  });
+
+  it('encodes the source maxZoom so a change forces a source remount', () => {
+    expect(getRasterImagerySourceKey('imagery-vexcel', 19)).toBe('imagery-vexcel--mz19');
+    expect(getRasterImagerySourceKey('imagery-vexcel', 0)).toBe('imagery-vexcel--mz0');
   });
 });
 
