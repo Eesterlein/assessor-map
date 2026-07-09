@@ -182,6 +182,30 @@ describe('detectTileSourceType', () => {
   it('does not misclassify an OGC API URL as WMTS', () => {
     expect(detectTileSourceType('https://example.com/collections/parcels')).toBe('ogc-api');
   });
+
+  it('detects an ArcGIS MapServer root', () => {
+    expect(
+      detectTileSourceType(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer',
+      ),
+    ).toBe('arcgis');
+    expect(
+      detectTileSourceType(
+        'http://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/',
+      ),
+    ).toBe('arcgis');
+  });
+
+  it('does not classify ArcGIS FeatureServer or tile sub-paths as arcgis', () => {
+    expect(
+      detectTileSourceType('https://example.com/arcgis/rest/services/Parcels/FeatureServer'),
+    ).toBe('ogc-api');
+    expect(
+      detectTileSourceType(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+      ),
+    ).toBe('xyz');
+  });
 });
 
 describe('buildGeometryFilter', () => {

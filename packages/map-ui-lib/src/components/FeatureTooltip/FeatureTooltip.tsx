@@ -1,3 +1,4 @@
+import type { PropertyDisplayType } from '../../types';
 import { PropertyList } from '../_shared/PropertyList';
 
 interface FeatureEntry {
@@ -5,6 +6,8 @@ interface FeatureEntry {
   properties: Record<string, unknown>;
   fields?: string[];
   labels?: Record<string, string>;
+  types?: Record<string, PropertyDisplayType>;
+  linkText?: Record<string, string>;
 }
 
 export interface FeatureTooltipProps {
@@ -13,6 +16,8 @@ export interface FeatureTooltipProps {
   properties?: Record<string, unknown> | null;
   fields?: string[];
   labels?: Record<string, string>;
+  types?: Record<string, PropertyDisplayType>;
+  linkText?: Record<string, string>;
   /** Multiple features — takes precedence over single-feature props */
   features?: FeatureEntry[];
   maxItems?: number;
@@ -24,6 +29,8 @@ export function FeatureTooltip({
   properties,
   fields,
   labels,
+  types,
+  linkText,
   features,
   maxItems = 4,
   className = '',
@@ -33,7 +40,7 @@ export function FeatureTooltip({
     features && features.length > 0
       ? features
       : properties
-        ? [{ title, properties, fields, labels }]
+        ? [{ title, properties, fields, labels, types, linkText }]
         : [];
 
   if (entries.length === 0) {
@@ -67,6 +74,8 @@ export function FeatureTooltip({
                 properties={entry.properties}
                 fields={entry.fields}
                 labels={entry.labels}
+                types={entry.types}
+                linkText={entry.linkText}
                 maxItems={maxItems}
                 density="compact"
               />

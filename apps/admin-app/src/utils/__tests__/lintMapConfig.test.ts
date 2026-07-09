@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { lintMapConfig, isSearchFieldTypeCompatible } from '../lintMapConfig';
-import type { ImageryLayerConfig, LayerConfig, SearchField, AvailableProperty, GlobalSearchConfig } from '@techtraverse/map-ui-lib';
+import type { BasemapConfig, ImageryLayerConfig, LayerConfig, SearchField, AvailableProperty, GlobalSearchConfig } from '@techtraverse/map-ui-lib';
 
 const baseImagery: ImageryLayerConfig = {
   id: 'i1',
@@ -66,6 +66,10 @@ describe('lintMapConfig', () => {
     expect(lintMapConfig(empty)).toEqual([]);
   });
 
+  it('accepts an explicit empty basemaps array', () => {
+    expect(lintMapConfig({ ...empty, basemaps: [] })).toEqual([]);
+  });
+
   it('flags an incomplete imagery row', () => {
     const issues = lintMapConfig({ ...empty, imageryLayers: [{ ...baseImagery }] });
     expect(issues).toHaveLength(1);
@@ -79,6 +83,66 @@ describe('lintMapConfig', () => {
       imageryLayers: [{ ...baseImagery, tileUrlTemplate: 'https://example.com/{z}/{x}/{y}.png' }],
     });
     expect(issues).toHaveLength(0);
+  });
+
+  it('warns (not errors) on a blank-labeled imagery row that is otherwise complete', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{
+        ...baseImagery,
+        label: '',
+        tileUrlTemplate: 'https://example.com/{z}/{x}/{y}.png',
+      }],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].path).toBe('Imagery layer #1');
+    expect(issues[0].message).toMatch(/no label/i);
+  });
+
+  it('warns on a whitespace-only imagery label', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: '   ', sourceId: 's1', collection: 'ortho' }],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  it('does not double-report an imagery row that is both incomplete and blank-labeled', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: '' }], // incomplete AND blank label
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('error');
+  });
+
+  it('does not warn on a complete imagery row with a label', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: 'Aerial', sourceId: 's1', collection: 'ortho' }],
+    });
+    expect(issues).toHaveLength(0);
+  });
+
+  it('warns on a blank-labeled basemap', () => {
+    const basemaps: BasemapConfig[] = [
+      { id: 'osm', label: '', url: 'https://example.com/style.json' },
+    ];
+    const issues = lintMapConfig({ ...empty, basemaps });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].path).toBe('Basemap #1');
+    expect(issues[0].message).toMatch(/no label/i);
+  });
+
+  it('does not warn on basemaps with labels', () => {
+    const basemaps: BasemapConfig[] = [
+      { id: 'osm', label: 'OpenStreetMap', url: 'https://example.com/style.json' },
+      { id: 'sat', label: 'Satellite', url: 'https://example.com/sat.json' },
+    ];
+    expect(lintMapConfig({ ...empty, basemaps })).toHaveLength(0);
   });
 
   it('flags a search field with a non-existent property', () => {

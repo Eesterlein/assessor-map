@@ -1,4 +1,5 @@
 import { safeValidateMapConfig } from '../../schemas/config';
+import { resolveDisplayLabel } from '../../utils/labelUtils';
 import type {
   MapConfig,
   LayerConfig,
@@ -381,7 +382,7 @@ export function ConfigReview({ config, name, description, onEditSection }: Confi
               {b.thumbnail && (
                 <img src={b.thumbnail} alt="" className="mapui:h-6 mapui:w-6 mapui:rounded mapui:object-cover" />
               )}
-              <span className="mapui:text-sm mapui:text-slate-700">{b.label || b.id}</span>
+              <span className="mapui:text-sm mapui:text-slate-700">{resolveDisplayLabel(b)}</span>
             </li>
           ))}
         </ul>
@@ -404,7 +405,7 @@ export function ConfigReview({ config, name, description, onEditSection }: Confi
                   {img.thumbnailUrl && (
                     <img src={img.thumbnailUrl} alt="" className="mapui:h-6 mapui:w-6 mapui:rounded mapui:object-cover" />
                   )}
-                  <span className="mapui:text-sm mapui:text-slate-700">{img.label || img.id}</span>
+                  <span className="mapui:text-sm mapui:text-slate-700">{resolveDisplayLabel(img)}</span>
                   {img.exclusive && <Chip>exclusive</Chip>}
                 </span>
                 <span className="mapui:text-xs mapui:text-slate-500">{Math.round((img.opacity ?? 1) * 100)}%</span>
@@ -503,6 +504,9 @@ export function ConfigReview({ config, name, description, onEditSection }: Confi
           {ui?.coordinateFormat && (
             <Row label="Coordinates">{COORDINATE_FORMAT_LABELS[ui.coordinateFormat] ?? ui.coordinateFormat}</Row>
           )}
+          {ui?.defaultLabelFont?.length ? (
+            <Row label="Label font">{ui.defaultLabelFont.join(', ')}</Row>
+          ) : null}
         </dl>
       </SectionCard>
 

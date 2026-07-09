@@ -31,6 +31,32 @@ export const Default: Story = {
   },
 };
 
+export const WithLinkField: Story = {
+  render: () => {
+    const initial: PropertyDisplayConfig = {
+      parcelno: { label: 'Parcel Number', visible: true, order: 0 },
+      owner: { label: 'Owner', visible: true, order: 1 },
+      acres: { label: 'Acres', visible: true, order: 2 },
+      assessorlink: {
+        label: 'Assessor Record',
+        visible: true,
+        order: 3,
+        type: 'link',
+        linkText: 'View Assessor Record ↗',
+      },
+    };
+    const [config, setConfig] = useState<PropertyDisplayConfig>(initial);
+    return (
+      <div className="mapui:max-w-lg mapui:p-4">
+        <PropertyDisplayEditor value={config} onChange={setConfig} />
+        <pre className="mapui:mt-4 mapui:rounded mapui:bg-slate-100 mapui:p-3 mapui:text-xs">
+          {JSON.stringify(config, null, 2)}
+        </pre>
+      </div>
+    );
+  },
+};
+
 export const WithExistingConfig: Story = {
   render: () => {
     const initial: PropertyDisplayConfig = {

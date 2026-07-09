@@ -24,7 +24,7 @@ export function BasemapEditor({ value, onChange }: BasemapEditorProps) {
         />
       </FormField>
 
-      <FormField label="Label">
+      <FormField label="Label" required>
         <input
           type="text"
           value={value.label}

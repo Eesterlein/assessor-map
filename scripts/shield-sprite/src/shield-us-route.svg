@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Generic badge/crest silhouette: square shoulders, rounded taper to a
+       bottom point (unbranded US-route-style outline). -->
+  <path fill="#000" d="M4 3.5
+    L 26 3.5
+    L 26 14
+    C 26 21.5 20.5 25.5 15 27.5
+    C 9.5 25.5 4 21.5 4 14
+    Z"/>
+</svg>

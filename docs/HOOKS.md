@@ -639,10 +639,15 @@ downloadCsv(csv, 'countries.csv');
 ```ts
 function resolvePropertyDisplay(
   propertyDisplay: PropertyDisplayConfig | undefined
-): { fields: string[]; labels: Record<string, string> } | undefined
+): {
+  fields: string[];
+  labels: Record<string, string>;
+  types: Record<string, PropertyDisplayType>;
+  linkText: Record<string, string>;
+} | undefined
 ```
 
-Transforms a `PropertyDisplayConfig` into a resolved form with a flat list of visible field names and a label map. Filters out entries with `visible: false` and sorts by each entry's `order` (entries without `order` follow ordered ones, in key order). Returns `undefined` if input is `undefined` (meaning "show all properties with default labels").
+Transforms a `PropertyDisplayConfig` into a resolved form with a flat list of visible field names, a label map, a display-type map, and a link-text map. Filters out entries with `visible: false` and sorts by each entry's `order` (entries without `order` follow ordered ones, in key order). Returns `undefined` if input is `undefined` (meaning "show all properties with default labels"). `types` only contains non-default entries (currently `'link'` — a key's absence means `'text'`); a `'link'` field renders as an anchor in `PropertyList` when its value is a safe http(s) URL, with `linkText[key]` as the anchor text.
 
 Use this utility when rendering feature properties to respect the layer's `propertyDisplay` configuration.
 

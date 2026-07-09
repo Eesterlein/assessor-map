@@ -77,6 +77,11 @@ export function StyleCard({
             ))}
           </span>
         )}
+        {(style.minZoom != null || style.maxZoom != null) && (
+          <span className="mapui:rounded mapui:bg-cyan-100 mapui:px-1.5 mapui:py-0.5 mapui:text-[10px] mapui:font-medium mapui:text-cyan-700">
+            z{style.minZoom ?? 0}–{style.maxZoom ?? 24}
+          </span>
+        )}
         <span className="mapui:ml-auto mapui:flex mapui:items-center mapui:gap-2">
           <span className="mapui:w-20 mapui:shrink-0">
             <StylePreview style={style} />

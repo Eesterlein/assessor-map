@@ -11,6 +11,7 @@ import {
   resolvePropertyDisplay,
   fetchDistinctValues,
   resolveStyleWithSprites,
+  withDefaultShieldSprite,
   fetchFeatures,
   fetchFeatureById,
   eq,
@@ -32,12 +33,14 @@ import {
   and,
   mergeBaseAndActiveCql2Filters,
   expandDashByCategory,
+  applyDefaultLabelFont,
   runGlobalSearch,
   prefetchAllDistinctValues,
   prefetchKey,
   type GlobalSearchContext,
   buildSourceUrlMap,
   isOgcApiSource,
+  resolveStyleZoomBounds,
 } from '@techtraverse/map-ui-lib/utils';
 import type { CQL2Expression } from '@techtraverse/map-ui-lib/utils';
 import type { PropertyFilter } from '@techtraverse/map-ui-lib/utils';
@@ -98,7 +101,7 @@ import type {
   InfoConfig,
   GlobalSearchConfig,
 } from '@techtraverse/map-ui-lib';
-import type { SearchFilterValue, SearchFilterValues, Cql2FilterConfig, InfoPosition } from '@techtraverse/map-ui-lib/types';
+import type { SearchFilterValue, SearchFilterValues, Cql2FilterConfig, InfoPosition, PropertyDisplayType } from '@techtraverse/map-ui-lib/types';
 import { useMeasure, useSelection } from '@techtraverse/map-ui-lib/hooks';
 
 import { LuDownload, LuLayers3, LuList, LuMap, LuMousePointer2, LuRuler, LuSatellite, LuSearch } from 'react-icons/lu';
@@ -142,13 +145,17 @@ function renderPreviewStyleLayers(
   baseId: string,
   layer: LayerConfig,
   sourceLayer?: string,
+  defaultLabelFont?: string[],
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const commonProps: Record<string, any> = {
     type: style.type,
-    layout: { ...(style.layout ?? {}), visibility: layer.visible ? 'visible' : 'none' },
-    ...(layer.minZoom != null ? { minzoom: layer.minZoom } : {}),
-    ...(layer.maxZoom != null ? { maxzoom: layer.maxZoom } : {}),
+    layout: applyDefaultLabelFont(
+      { ...(style.layout ?? {}), visibility: layer.visible ? 'visible' : 'none' },
+      style,
+      defaultLabelFont,
+    ),
+    ...resolveStyleZoomBounds(layer, style),
     ...(sourceLayer ? { 'source-layer': sourceLayer } : {}),
   };
   const baseFilter = style.geometryFilter ? buildGeometryFilter(style.geometryFilter) : undefined;
@@ -195,12 +202,14 @@ function PreviewVectorTileLayer({
   tileMatrixSetId,
   cql2Filter,
   auth,
+  defaultLabelFont,
 }: {
   layer: LayerConfig;
   sourceUrl: string;
   tileMatrixSetId?: string;
   cql2Filter?: CQL2Expression | null;
   auth?: SourceAuth;
+  defaultLabelFont?: string[];
 }) {
   const tileUrl = getCql2FilteredVectorTileUrl(sourceUrl, layer.collection, cql2Filter, tileMatrixSetId, auth);
   // Resolve the MVT `source-layer` from the collection's TileJSON (handles tipg
@@ -216,7 +225,7 @@ function PreviewVectorTileLayer({
 
   return (
     <Source id={sourceKey} key={remountKey} type="vector" tiles={[tileUrl]}>
-      {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, sourceKey, layer, sourceLayer))}
+      {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, sourceKey, layer, sourceLayer, defaultLabelFont))}
     </Source>
   );
 }
@@ -226,11 +235,13 @@ function PreviewGeoJsonLayer({
   sourceUrl,
   cql2Filter,
   auth,
+  defaultLabelFont,
 }: {
   layer: LayerConfig;
   sourceUrl: string;
   cql2Filter?: CQL2Expression | null;
   auth?: SourceAuth;
+  defaultLabelFont?: string[];
 }) {
   const { features } = useOgcFeatures(sourceUrl, layer.collection, { limit: 10000, cql2Filter: cql2Filter ?? undefined }, auth);
 
@@ -246,7 +257,7 @@ function PreviewGeoJsonLayer({
 
   return (
     <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection}>
-      {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, layer.id, layer))}
+      {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
     </Source>
   );
 }
@@ -355,12 +366,16 @@ export function MapPreview({
     title?: string;
     fields?: string[];
     labels?: Record<string, string>;
+    types?: Record<string, PropertyDisplayType>;
+    linkText?: Record<string, string>;
   }[]>([]);
   const [hoveredFeatures, setHoveredFeatures] = useState<{
     properties: Record<string, unknown>;
     title?: string;
     fields?: string[];
     labels?: Record<string, string>;
+    types?: Record<string, PropertyDisplayType>;
+    linkText?: Record<string, string>;
   }[]>([]);
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number } | null>(null);
   const [openControl, setOpenControl] = useState<string | null>(null);
@@ -377,6 +392,10 @@ export function MapPreview({
     return () => mq.removeEventListener('change', handler);
   }, []);
   const effectiveLayout = resolveEffectiveLayout(uiConfig?.controlLayout, isNarrowViewport);
+
+  // Map-level default text-font for symbol styles; resolved at render time by
+  // the shared applyDefaultLabelFont util so preview matches map-client.
+  const defaultLabelFont = uiConfig?.defaultLabelFont;
 
   // Global search state — mirrors map-client's useGlobalSearch with local
   // useState instead of a Zustand store, since the admin preview is a
@@ -656,11 +675,14 @@ export function MapPreview({
   const mapStyleUrl = activeBasemap?.url ?? basemaps[0]?.url ?? FALLBACK_BASEMAP_URL;
 
   useEffect(() => {
-    if (!sprites?.length) {
-      setResolvedStyle(mapStyleUrl);
-      return;
-    }
-    resolveStyleWithSprites(mapStyleUrl, sprites)
+    // Always merge in the bundled default shield sprite (id "shields") so
+    // `icon-image: "shields:*"` works in the preview; a config-level sprite
+    // with the same id overrides it.
+    const allSprites = withDefaultShieldSprite(
+      sprites ?? [],
+      `${window.location.origin}${import.meta.env.BASE_URL}`,
+    );
+    resolveStyleWithSprites(mapStyleUrl, allSprites)
       .then(setResolvedStyle)
       .catch((err) => {
         console.warn('Failed to resolve sprite style, using basemap URL:', err);
@@ -1050,8 +1072,10 @@ export function MapPreview({
         latitude={internalViewState.latitude}
         longitude={internalViewState.longitude}
         zoom={internalViewState.zoom}
-        pitch={internalViewState.pitch}
-        bearing={internalViewState.bearing}
+        // pitch/bearing may be absent on raw (un-Zod-parsed) configs; undefined
+        // here makes MapLibre's projection matrix singular and crashes the map
+        pitch={internalViewState.pitch ?? 0}
+        bearing={internalViewState.bearing ?? 0}
         {...(zoomConstraintsValid && internalViewState.minZoom != null ? { minZoom: internalViewState.minZoom } : {})}
         {...(zoomConstraintsValid && internalViewState.maxZoom != null ? { maxZoom: internalViewState.maxZoom } : {})}
         style={{ width: '100%', height: '100%' }}
@@ -1141,6 +1165,8 @@ export function MapPreview({
                 title: layer?.label ?? (f.properties?.['name'] as string) ?? f.layer.id,
                 fields: resolved?.fields,
                 labels: resolved?.labels,
+                types: resolved?.types,
+                linkText: resolved?.linkText,
               });
             }
             setSelectedFeatures(infos);
@@ -1179,6 +1205,8 @@ export function MapPreview({
                   title: layer?.label ?? (f.properties?.['name'] as string),
                   fields: resolved?.fields,
                   labels: resolved?.labels,
+                  types: resolved?.types,
+                  linkText: resolved?.linkText,
                 });
               }
               setHoveredFeatures(infos);
@@ -1231,6 +1259,7 @@ export function MapPreview({
                 sourceUrl={sourceInfo.url}
                 cql2Filter={effectiveCql2Filters[layer.id]}
                 auth={sourceInfo.auth}
+                defaultLabelFont={defaultLabelFont}
               />
             );
           }
@@ -1243,6 +1272,7 @@ export function MapPreview({
               tileMatrixSetId={sourceInfo.tileMatrixSetId}
               cql2Filter={effectiveCql2Filters[layer.id]}
               auth={sourceInfo.auth}
+              defaultLabelFont={defaultLabelFont}
             />
           );
         })}
@@ -1388,6 +1418,8 @@ export function MapPreview({
                   title={feature.title ?? 'Feature Properties'}
                   fields={feature.fields}
                   labels={feature.labels}
+                  types={feature.types}
+                  linkText={feature.linkText}
                   variant="panel"
                 />
               ))}

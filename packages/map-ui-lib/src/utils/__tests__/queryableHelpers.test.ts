@@ -393,4 +393,33 @@ describe('resolveStyleReapplyAction', () => {
   it('warns when styles exist but we never recorded an auto-applied set', () => {
     expect(resolveStyleReapplyAction([fill], [circle], null)).toBe('warn');
   });
+
+  it('keeps customized styles whose types are still suitable for the geometry (fresh mount)', () => {
+    // Saved config reopened in the editor: ref is null, styles are customized,
+    // but a circle style on a point collection is not a geometry mismatch.
+    const customized: StyleConfig = {
+      ...circle,
+      paint: { ...circle.paint, 'circle-color': '#123456' },
+    };
+    expect(resolveStyleReapplyAction([customized], [circle], null, ['circle', 'symbol'])).toBe('keep');
+  });
+
+  it('keeps compatible customized styles even when detected defaults differ in shape', () => {
+    const symbolStyle: StyleConfig = {
+      type: 'symbol',
+      layout: { 'text-field': ['get', 'name'] },
+    } as StyleConfig;
+    expect(
+      resolveStyleReapplyAction([circle, symbolStyle], [circle], null, ['circle', 'symbol']),
+    ).toBe('keep');
+  });
+
+  it('still warns when a current style type is unsuitable for the detected geometry', () => {
+    expect(resolveStyleReapplyAction([fill], [circle], null, ['circle', 'symbol'])).toBe('warn');
+  });
+
+  it('still auto-applies untouched defaults even if they remain compatible', () => {
+    // Untouched auto-defaults are always safe to replace with the new detection.
+    expect(resolveStyleReapplyAction([circle], [fill], [circle], ['fill', 'line', 'circle', 'symbol'])).toBe('apply');
+  });
 });

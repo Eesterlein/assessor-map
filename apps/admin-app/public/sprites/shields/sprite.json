@@ -1,0 +1,50 @@
+{
+  "shield-generic": {
+    "x": 2,
+    "y": 2,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  },
+  "shield-interstate": {
+    "x": 44,
+    "y": 2,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  },
+  "shield-us-route": {
+    "x": 2,
+    "y": 44,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  },
+  "shield-state": {
+    "x": 44,
+    "y": 44,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  },
+  "shield-circle": {
+    "x": 2,
+    "y": 86,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  },
+  "shield-rect": {
+    "x": 44,
+    "y": 86,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
+  }
+}

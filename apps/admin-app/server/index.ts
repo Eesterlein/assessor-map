@@ -15,7 +15,15 @@ import {
 } from './proxyRewrite.js';
 import { registerDataRoutes } from './dataRoutes.js';
 import { registerRowRoutes } from './rowRoutes.js';
-import { detectTileSourceType, appendAuth, authHeaders } from '@techtraverse/map-ui-lib/hooks';
+import {
+  detectTileSourceType,
+  appendAuth,
+  authHeaders,
+  validateSourceUrl,
+  isArcgisMapServerUrl,
+  buildArcgisTileUrlTemplate,
+  fetchArcgisServiceInfo,
+} from '@techtraverse/map-ui-lib/hooks';
 import type { SourceAuth } from '@techtraverse/map-ui-lib/hooks';
 import { safeValidateMapConfig } from '@techtraverse/map-ui-lib/schemas';
 
@@ -711,6 +719,13 @@ app.post('/api/sources/test-connection', requireAuth, async (req, res) => {
       return;
     }
 
+    if (sourceType === 'arcgis') {
+      // Valid only if the service is a cached Web-Mercator tile service
+      await fetchArcgisServiceInfo(testUrl, sourceAuth, AbortSignal.timeout(10_000));
+      res.json({ status: 'success' });
+      return;
+    }
+
     if (sourceType === 'xyz') {
       testEndpoint = testUrl.replace('{z}', '0').replace('{x}', '0').replace('{y}', '0');
       acceptHeader = '*/*';
@@ -767,8 +782,25 @@ app.post('/api/sources', requireAuth, async (req, res) => {
     return;
   }
 
+  const effectiveType = source_type ?? 'features';
+  let normalizedUrl = url;
+  if (!isImageryBasemap) {
+    const validated = validateSourceUrl(url!, { allowRelative: effectiveType === 'basemap' });
+    if (!validated.ok) {
+      res.status(400).json({ error: `${validated.error} (got: ${JSON.stringify(url)})` });
+      return;
+    }
+    if (effectiveType === 'basemap' && isArcgisMapServerUrl(validated.url)) {
+      res.status(400).json({
+        error:
+          'An ArcGIS MapServer URL is not a MapLibre style. Save it as an Imagery source first, then create the basemap in "From imagery source" mode.',
+      });
+      return;
+    }
+    normalizedUrl = validated.url;
+  }
+
   try {
-    const effectiveType = source_type ?? 'features';
 
     // Imagery-derived basemap: validate the linked imagery row exists, then insert
     // a basemap row with a placeholder URL and update it with the synthesized URL.
@@ -814,7 +846,7 @@ app.post('/api/sources', requireAuth, async (req, res) => {
       `INSERT INTO map_admin.ogc_sources (source_id, url, label, tile_matrix_set_id, source_type, auth, proxy${basemapMetadata !== undefined ? ', metadata, metadata_updated_at' : ''})
        VALUES ($1, $2, $3, $4, $5, $6, $7${basemapMetadata !== undefined ? ', $8, now()' : ''}) RETURNING *`,
       [
-        source_id, url, label ?? null, tile_matrix_set_id ?? 'WebMercatorQuad', effectiveType,
+        source_id, normalizedUrl, label ?? null, tile_matrix_set_id ?? 'WebMercatorQuad', effectiveType,
         auth ? JSON.stringify(auth) : null,
         proxy ?? false,
         ...(basemapMetadata !== undefined ? [basemapMetadata] : []),
@@ -837,7 +869,7 @@ app.post('/api/sources', requireAuth, async (req, res) => {
       // url is guaranteed defined here: the basemap-from-imagery branch returned
       // earlier, and the !isImageryBasemap path is gated on url being present.
       try {
-        const inspected = await inspectSource(url!);
+        const inspected = await inspectSource(normalizedUrl!);
         const updated = await pool.query(
           'UPDATE map_admin.ogc_sources SET metadata = $1, metadata_updated_at = now() WHERE id = $2 RETURNING *',
           [JSON.stringify(inspected), row.id],
@@ -890,6 +922,23 @@ app.put('/api/sources/:id', requireAuth, async (req, res) => {
 
     const effectiveType = source_type ?? row.source_type;
 
+    let normalizedUrl = url;
+    if (url !== undefined) {
+      const validated = validateSourceUrl(url, { allowRelative: effectiveType === 'basemap' });
+      if (!validated.ok) {
+        res.status(400).json({ error: `${validated.error} (got: ${JSON.stringify(url)})` });
+        return;
+      }
+      if (effectiveType === 'basemap' && isArcgisMapServerUrl(validated.url)) {
+        res.status(400).json({
+          error:
+            'An ArcGIS MapServer URL is not a MapLibre style. Save it as an Imagery source first, then create the basemap in "From imagery source" mode.',
+        });
+        return;
+      }
+      normalizedUrl = validated.url;
+    }
+
     // Imagery-derived basemap update path: rewrite url + metadata to point at the
     // synthesized style endpoint. Triggered when imagery_source_id is provided
     // (use null to detach an existing link and revert to a plain Style URL basemap).
@@ -934,10 +983,15 @@ app.put('/api/sources/:id', requireAuth, async (req, res) => {
       // below, which will treat the request as a regular Style URL basemap update.
     }
 
-    const newUrl = url ?? row.url;
+    const newUrl = normalizedUrl ?? row.url;
 
+    // Client-provided metadata is persisted regardless of whether the URL
+    // changed — the wizard's WMTS editor saves settings like wmtsMaxZoom with
+    // an unchanged capabilities URL.
     const result = await pool.query(
-      `UPDATE map_admin.ogc_sources SET source_id = $1, url = $2, label = $3, tile_matrix_set_id = $4, source_type = $5, auth = $6, proxy = $7, updated_at = now()
+      `UPDATE map_admin.ogc_sources SET source_id = $1, url = $2, label = $3, tile_matrix_set_id = $4, source_type = $5, auth = $6, proxy = $7, updated_at = now()${
+        metadata ? ', metadata = $9, metadata_updated_at = now()' : ''
+      }
        WHERE id = $8 RETURNING *`,
       [
         source_id ?? row.source_id,
@@ -948,6 +1002,7 @@ app.put('/api/sources/:id', requireAuth, async (req, res) => {
         auth !== undefined ? (auth ? JSON.stringify(auth) : null) : (row.auth ? JSON.stringify(row.auth) : null),
         proxy !== undefined ? proxy : row.proxy,
         req.params.id,
+        ...(metadata ? [JSON.stringify(metadata)] : []),
       ],
     );
 
@@ -966,18 +1021,10 @@ app.put('/api/sources/:id', requireAuth, async (req, res) => {
       return;
     }
 
-    // Re-inspect if URL changed (non-basemap sources)
-    if (url && url !== row.url) {
-      if (metadata) {
-        // Client provided metadata — save directly
-        const updated = await pool.query(
-          'UPDATE map_admin.ogc_sources SET metadata = $1, metadata_updated_at = now() WHERE id = $2 RETURNING *',
-          [JSON.stringify(metadata), req.params.id],
-        );
-        res.json(updated.rows[0]);
-        return;
-      }
-      // No metadata provided — auto-inspect server-side (fallback)
+    // Re-inspect if URL changed and the client sent no metadata of its own
+    // (non-basemap sources)
+    if (normalizedUrl && normalizedUrl !== row.url && !metadata) {
+      // Auto-inspect server-side (fallback)
       try {
         const inspected = await inspectSource(newUrl);
         const updated = await pool.query(
@@ -1147,6 +1194,28 @@ app.post('/api/sources/import', requireAuth, async (_req, res) => {
       }
     }
 
+    // Skip (and report) sources whose URL fails validation instead of importing
+    // garbage into the catalog; normalize the rest.
+    const skipped: Array<{ id: string; url: string; error: string }> = [];
+    for (const [id, s] of Array.from(seen)) {
+      const validated = validateSourceUrl(s.url);
+      if (!validated.ok) {
+        skipped.push({ id, url: s.url, error: validated.error });
+        seen.delete(id);
+      } else {
+        s.url = validated.url;
+      }
+    }
+    for (const [id, b] of Array.from(seenBasemaps)) {
+      const validated = validateSourceUrl(b.url, { allowRelative: true });
+      if (!validated.ok) {
+        skipped.push({ id, url: b.url, error: validated.error });
+        seenBasemaps.delete(id);
+      } else {
+        b.url = validated.url;
+      }
+    }
+
     let importedFeatures = 0;
     let importedImagery = 0;
     let importedBasemaps = 0;
@@ -1202,6 +1271,7 @@ app.post('/api/sources/import', requireAuth, async (_req, res) => {
     res.json({
       imported: { features: importedFeatures, imagery: importedImagery, basemaps: importedBasemaps },
       total: seen.size + seenBasemaps.size,
+      skipped,
     });
   } catch (err) {
     handleServerError(res, err);
@@ -1213,6 +1283,7 @@ app.post('/api/sources/import', requireAuth, async (_req, res) => {
 // Shape we read out of an imagery source row's metadata column for tile resolution
 interface ImageryRowMetadata {
   tileJson?: { tiles?: string[]; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number] };
+  arcgis?: { tileUrlTemplate?: string; minZoom?: number; maxZoom?: number };
 }
 
 // Resolved imagery row joined to a basemap row
@@ -1241,6 +1312,11 @@ function buildBasemapTileUrl(link: BasemapImageryLink): {
 
   if (sourceType === 'xyz') {
     template = link.imageryUrl;
+  } else if (sourceType === 'arcgis') {
+    const ag = link.imageryMetadata?.arcgis;
+    template = ag?.tileUrlTemplate ?? buildArcgisTileUrlTemplate(link.imageryUrl);
+    minzoom = ag?.minZoom;
+    maxzoom = ag?.maxZoom;
   } else if (sourceType === 'tilejson') {
     const tj = link.imageryMetadata?.tileJson;
     if (!tj?.tiles?.length) {
@@ -1352,6 +1428,10 @@ app.get('/api/basemaps/:id/tiles/:z/:x/:y', async (req, res) => {
     let template: string;
     if (sourceType === 'xyz') {
       template = link.imageryUrl;
+    } else if (sourceType === 'arcgis') {
+      template =
+        link.imageryMetadata?.arcgis?.tileUrlTemplate ??
+        buildArcgisTileUrlTemplate(link.imageryUrl);
     } else if (sourceType === 'tilejson') {
       const tj = link.imageryMetadata?.tileJson;
       if (!tj?.tiles?.length) {

@@ -105,7 +105,7 @@ export function ImageryEditor({
 
   return (
     <div className="mapui:flex mapui:flex-col mapui:gap-3">
-      <FormField label="Label">
+      <FormField label="Label" required>
         <input
           type="text"
           value={value.label}

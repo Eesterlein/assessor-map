@@ -35,6 +35,7 @@ import {
   GLOBAL_SEARCH_POSITIONS,
   GLOBAL_SEARCH_WIDTHS,
   FilterConfigSchema,
+  PROPERTY_DISPLAY_TYPES,
   PropertyDisplaySchema,
   PropertyDisplayConfigSchema,
   ImageryLayerConfigSchema,
@@ -162,6 +163,7 @@ export interface Cql2QueryShape {
 export type PropertyDisplay = z.infer<typeof PropertyDisplaySchema>;
 export type PropertyDisplayConfig = z.infer<typeof PropertyDisplayConfigSchema>;
 export type PropertyDisplayConfigInput = z.input<typeof PropertyDisplayConfigSchema>;
+export type { PropertyDisplayType } from '../schemas/config';
 export type ImageryLayerConfig = z.infer<typeof ImageryLayerConfigSchema>;
 export type LayerConfig = z.infer<typeof LayerConfigSchema>;
 export type BasemapConfig = z.infer<typeof BasemapConfigSchema>;
@@ -227,6 +229,7 @@ export {
   GLOBAL_SEARCH_POSITIONS,
   GLOBAL_SEARCH_WIDTHS,
   FilterConfigSchema,
+  PROPERTY_DISPLAY_TYPES,
   PropertyDisplaySchema,
   PropertyDisplayConfigSchema,
   ImageryLayerConfigSchema,

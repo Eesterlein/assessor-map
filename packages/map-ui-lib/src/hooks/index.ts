@@ -91,6 +91,14 @@ export {
   type FetchFeaturesOptions,
 } from '../utils/ogcApi';
 export {
+  isArcgisMapServerUrl,
+  buildArcgisTileUrlTemplate,
+  parseArcgisServiceInfo,
+  fetchArcgisServiceInfo,
+  type ArcgisTileMetadata,
+} from '../utils/arcgis';
+export { validateSourceUrl, type SourceUrlValidation } from '../utils/sourceUrl';
+export {
   eq,
   neq,
   gt,

@@ -16,11 +16,12 @@ import {
   FormField,
   ColorPicker,
   resolveAvailableIcons,
+  withDefaultShieldSprite,
   slugify,
   INFO_POSITIONS,
 } from '@techtraverse/map-ui-lib';
 import { safeValidateMapConfig, DEFAULT_HEADER_COLOR } from '@techtraverse/map-ui-lib/schemas';
-import { detectTileSourceType, isOgcApiSource, isImagerySource } from '@techtraverse/map-ui-lib/utils';
+import { detectTileSourceType, isOgcApiSource, isImagerySource, buildArcgisTileUrlTemplate } from '@techtraverse/map-ui-lib/utils';
 import { savedSourceToWmts, savedSourceIsImagery, type WmtsSourceMetadata } from '../utils/wmtsSource';
 import type {
   OgcApiSource,
@@ -46,6 +47,7 @@ import { useQueryablesByLayer } from '../hooks/useQueryablesByLayer';
 import { prettifyZodIssue } from '../utils/prettifyZodPath';
 import { lintMapConfig, type WizardLintIssue } from '../utils/lintMapConfig';
 import { TIPG_LOCAL_SOURCE_ID } from '../utils/detectLocalOgcApi';
+import { DEFAULT_VIEW, normalizeInitialView } from '../utils/viewConfig';
 
 const DEFAULT_GLOBAL_SEARCH: GlobalSearchConfig = {
   enabled: true,
@@ -68,7 +70,7 @@ const INFO_POSITION_OPTIONS = INFO_POSITIONS.map((pos) => ({
   label: pos.replace('-', ' ').replace(/^./, (c) => c.toUpperCase()),
 }));
 
-interface SavedSourceSummary { id: string; source_id: string; url: string; label: string | null; tile_matrix_set_id: string; source_type?: string; auth?: SourceAuth | null; metadata?: (WmtsSourceMetadata & { thumbnail?: string; tileJson?: { tiles: string[]; name?: string; minzoom?: number; maxzoom?: number } }) | null }
+interface SavedSourceSummary { id: string; source_id: string; url: string; label: string | null; tile_matrix_set_id: string; source_type?: string; auth?: SourceAuth | null; metadata?: (WmtsSourceMetadata & { thumbnail?: string; tileJson?: { tiles: string[]; name?: string; minzoom?: number; maxzoom?: number }; arcgis?: { tileUrlTemplate: string; minZoom?: number; maxZoom?: number; attribution?: string } }) | null }
 
 type WizardStep = 'metadata' | 'info' | 'layers' | 'search-display' | 'imagery' | 'basemaps' | 'ui' | 'view' | 'review';
 
@@ -104,6 +106,7 @@ const DEFAULT_UI_CONFIG: UIConfig = {
   coordinateFormat: 'decimal-degrees',
   controlLayout: 'individual',
   sideMenuToggleCorner: 'top-right',
+  defaultLabelFont: ['Open Sans Bold'],
 };
 
 /** Derive which UI controls should be enabled based on current config state. */
@@ -162,13 +165,6 @@ function computeSuggestedUI(
   return suggested;
 }
 
-const DEFAULT_VIEW: ViewConfig = {
-  latitude: 0,
-  longitude: 0,
-  zoom: 2,
-  pitch: 0,
-  bearing: 0,
-};
 
 const PRESET_SPRITES: (SpriteSource & { displayLabel: string })[] = [
   { id: 'maplibre-osm-bright', url: 'https://demotiles.maplibre.org/styles/osm-bright-gl-style/sprite', displayLabel: 'MapLibre OSM Bright' },
@@ -269,7 +265,13 @@ export function ConfigWizardPage() {
   useEffect(() => {
     let stale = false;
     const basemapUrl = basemaps[0]?.url;
-    resolveAvailableIcons(basemapUrl, sprites)
+    // Include the bundled default shield sprite so `shields:*` icons always
+    // populate the icon picker, even without a custom sprite sheet.
+    const allSprites = withDefaultShieldSprite(
+      sprites,
+      `${window.location.origin}${import.meta.env.BASE_URL}`,
+    );
+    resolveAvailableIcons(basemapUrl, allSprites)
       .then(icons => { if (!stale) setAvailableIcons(icons); })
       .catch(() => {});
     return () => { stale = true; };
@@ -317,11 +319,12 @@ export function ConfigWizardPage() {
       lintMapConfig({
         layers,
         imageryLayers,
+        basemaps,
         globalSearch,
         queryablesByLayer,
         queryablesLoading,
       }),
-    [layers, imageryLayers, globalSearch, queryablesByLayer, queryablesLoading],
+    [layers, imageryLayers, basemaps, globalSearch, queryablesByLayer, queryablesLoading],
   );
 
   const lintErrorCount = lintIssues.filter((i) => i.severity === 'error').length;
@@ -354,7 +357,7 @@ export function ConfigWizardPage() {
           setUiOverrides(data.config.ui ?? DEFAULT_UI_CONFIG);
           setGlobalSearch(data.config.globalSearch);
           setInfo(data.config.info);
-          setInitialView(data.config.initialView ?? DEFAULT_VIEW);
+          setInitialView(normalizeInitialView(data.config.initialView));
           if (data.config.branding) {
             setBranding(data.config.branding);
           }
@@ -374,7 +377,7 @@ export function ConfigWizardPage() {
     setUiOverrides(next.ui ?? {});
     setGlobalSearch(next.globalSearch);
     setInfo(next.info);
-    setInitialView(next.initialView ?? DEFAULT_VIEW);
+    setInitialView(normalizeInitialView(next.initialView));
     setBranding(next.branding ?? {});
     setValidationErrors([]);
   };
@@ -916,6 +919,12 @@ export function ConfigWizardPage() {
                             return;
                           }
 
+                          const urlType = detectTileSourceType(saved.url);
+                          // ArcGIS cached MapServers normalize to an XYZ template;
+                          // maxZoom goes on the *source* (overzoom) rather than the
+                          // layer (which hides past its maxZoom).
+                          const ag = urlType === 'arcgis' ? saved.metadata?.arcgis : null;
+
                           const newSource: OgcApiSource = {
                             id: saved.source_id,
                             url: saved.url,
@@ -923,14 +932,17 @@ export function ConfigWizardPage() {
                             tileMatrixSetId: saved.tile_matrix_set_id,
                             type: 'imagery' as const,
                             auth: saved.auth ?? undefined,
+                            ...(ag?.maxZoom != null ? { maxZoom: ag.maxZoom } : {}),
                           };
                           setSources(prev => [...prev, newSource]);
 
-                          // Auto-add imagery layer for TileJSON/XYZ sources
-                          const urlType = detectTileSourceType(saved.url);
+                          // Auto-add imagery layer for TileJSON/XYZ/ArcGIS sources
                           if (urlType === 'style') return; // style URLs handled by Basemaps tab
                           const tj = urlType === 'tilejson' ? saved.metadata?.tileJson : null;
-                          const tileUrl = urlType === 'xyz' ? saved.url : tj?.tiles?.[0];
+                          const tileUrl =
+                            urlType === 'xyz' ? saved.url
+                            : urlType === 'arcgis' ? (ag?.tileUrlTemplate ?? buildArcgisTileUrlTemplate(saved.url))
+                            : tj?.tiles?.[0];
                           if (tileUrl) {
                             const label = (tj?.name ?? saved.label ?? saved.source_id);
                             setImageryLayers(prev => [...prev, {
@@ -945,6 +957,7 @@ export function ConfigWizardPage() {
                               tileUrlTemplate: tileUrl,
                               ...(tj?.minzoom != null ? { minZoom: tj.minzoom } : {}),
                               ...(tj?.maxzoom != null ? { maxZoom: tj.maxzoom } : {}),
+                              ...(ag?.minZoom != null && ag.minZoom > 0 ? { minZoom: ag.minZoom } : {}),
                             }]);
                           }
                         }}

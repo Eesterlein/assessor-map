@@ -125,6 +125,11 @@ export function StyleEditor({ value, onChange, suggestedType, suggestedTypes, av
     } as StyleConfig);
   };
 
+  const handleZoomChange = (key: 'minZoom' | 'maxZoom', val: number | undefined) => {
+    // Top-level optional Zod fields — undefined simply omits the key on save.
+    onChange({ ...value, [key]: val } as StyleConfig);
+  };
+
   const handlePaintChange = (key: string, val: unknown) => {
     const newPaint = { ...value.paint, [key]: val } as Record<string, unknown>;
     for (const k of Object.keys(newPaint)) {
@@ -240,6 +245,40 @@ export function StyleEditor({ value, onChange, suggestedType, suggestedTypes, av
       <div className="mapui:rounded mapui:border mapui:border-slate-100 mapui:p-2">
         <p className="mapui:m-0 mapui:mb-1 mapui:text-xs mapui:text-slate-500">Preview</p>
         <StylePreview style={value} />
+      </div>
+
+      {/* Per-style zoom visibility — narrows the layer's own zoom range for
+          just this style. Blank = unbounded (inherit the layer's range). */}
+      <div className="mapui:flex mapui:flex-col mapui:gap-2">
+        <p className="mapui:m-0 mapui:text-xs mapui:font-medium mapui:uppercase mapui:tracking-wide mapui:text-slate-500">
+          Zoom Visibility
+        </p>
+        <div className="mapui:grid mapui:grid-cols-2 mapui:gap-3">
+          <FormField label="Min Zoom">
+            <input
+              type="number"
+              min={0}
+              max={24}
+              step={1}
+              value={value.minZoom ?? ''}
+              onChange={(e) => { const v = e.target.valueAsNumber; handleZoomChange('minZoom', isNaN(v) ? undefined : v); }}
+              placeholder="0"
+              className={inputClass}
+            />
+          </FormField>
+          <FormField label="Max Zoom">
+            <input
+              type="number"
+              min={0}
+              max={24}
+              step={1}
+              value={value.maxZoom ?? ''}
+              onChange={(e) => { const v = e.target.valueAsNumber; handleZoomChange('maxZoom', isNaN(v) ? undefined : v); }}
+              placeholder="24"
+              className={inputClass}
+            />
+          </FormField>
+        </div>
       </div>
 
       {layoutGroupNames.length > 0 && (

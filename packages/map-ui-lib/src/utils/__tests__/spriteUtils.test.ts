@@ -4,6 +4,9 @@ import {
   fetchSpriteNames,
   resolveStyleWithSprites,
   resolveAvailableIcons,
+  getDefaultShieldSprite,
+  withDefaultShieldSprite,
+  DEFAULT_SHIELD_SPRITE_ID,
 } from '../spriteUtils';
 
 // restoreMocks:true in vitest config restores stubs after each test,
@@ -104,6 +107,54 @@ describe('resolveStyleWithSprites', () => {
     const maki = sprites.filter((s) => s.id === 'maki');
     expect(maki).toHaveLength(1);
     expect(maki[0].url).toBe('http://new');
+  });
+});
+
+describe('getDefaultShieldSprite', () => {
+  it('builds an absolute URL from an origin + base path', () => {
+    expect(getDefaultShieldSprite('http://localhost:3001/admin/')).toEqual({
+      id: 'shields',
+      url: 'http://localhost:3001/admin/sprites/shields/sprite',
+    });
+  });
+
+  it('handles a bare origin with root base', () => {
+    expect(getDefaultShieldSprite('http://localhost:3000/').url).toBe(
+      'http://localhost:3000/sprites/shields/sprite',
+    );
+  });
+
+  it('normalizes a missing trailing slash', () => {
+    expect(getDefaultShieldSprite('http://localhost:3001/admin').url).toBe(
+      'http://localhost:3001/admin/sprites/shields/sprite',
+    );
+  });
+});
+
+describe('withDefaultShieldSprite', () => {
+  it('prepends the default shield sprite when absent', () => {
+    const custom = [{ id: 'maki', url: 'http://maki' }];
+    const result = withDefaultShieldSprite(custom, 'http://localhost:3000/');
+    expect(result).toEqual([
+      { id: 'shields', url: 'http://localhost:3000/sprites/shields/sprite' },
+      { id: 'maki', url: 'http://maki' },
+    ]);
+    // input untouched
+    expect(custom).toHaveLength(1);
+  });
+
+  it('prepends to an empty list', () => {
+    const result = withDefaultShieldSprite([], 'http://localhost:3000/');
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(DEFAULT_SHIELD_SPRITE_ID);
+  });
+
+  it('does not duplicate when the caller already supplies id "shields"', () => {
+    const custom = [{ id: 'shields', url: 'http://my-own-shields' }];
+    const result = withDefaultShieldSprite(custom, 'http://localhost:3000/');
+    expect(result).toEqual(custom);
+    expect(result.filter((s) => s.id === 'shields')).toHaveLength(1);
+    expect(result[0].url).toBe('http://my-own-shields');
   });
 });
 

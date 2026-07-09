@@ -70,6 +70,11 @@ export const OgcApiSourceSchema = z.object({
   label: z.string().optional(),
   tileMatrixSetId: z.string().optional().default('WebMercatorQuad'),
   type: z.enum(['features', 'imagery']).optional(),
+  // Deepest zoom the server has native tiles for (e.g. ArcGIS cache LODs).
+  // Applied to the raster *source* so MapLibre overzooms past it instead of
+  // fetching blank tiles; distinct from imagery-layer maxZoom, which hides
+  // the layer. Mirrors WmtsSourceSchema.maxZoom.
+  maxZoom: z.number().min(0).max(24).optional(),
   auth: SourceAuthSchema.optional(),
   proxy: z.boolean().optional(),
 });
@@ -226,6 +231,8 @@ export const FillStyleSchema = z.object({
   paint: FillPaintSchema,
   layout: FillLayoutSchema.optional(),
   geometryFilter: z.array(GeometryTypeSchema).optional(),
+  minZoom: z.number().min(0).max(24).optional(),
+  maxZoom: z.number().min(0).max(24).optional(),
 });
 
 /**
@@ -257,6 +264,8 @@ export const LineStyleSchema = z.object({
    * this field render unchanged.
    */
   dashByCategory: DashByCategorySchema.optional(),
+  minZoom: z.number().min(0).max(24).optional(),
+  maxZoom: z.number().min(0).max(24).optional(),
 });
 
 export const CircleStyleSchema = z.object({
@@ -264,6 +273,8 @@ export const CircleStyleSchema = z.object({
   paint: CirclePaintSchema,
   layout: CircleLayoutSchema.optional(),
   geometryFilter: z.array(GeometryTypeSchema).optional(),
+  minZoom: z.number().min(0).max(24).optional(),
+  maxZoom: z.number().min(0).max(24).optional(),
 });
 
 export const SymbolStyleSchema = z.object({
@@ -271,6 +282,8 @@ export const SymbolStyleSchema = z.object({
   paint: SymbolPaintSchema,
   layout: SymbolLayoutSchema.optional(),
   geometryFilter: z.array(GeometryTypeSchema).optional(),
+  minZoom: z.number().min(0).max(24).optional(),
+  maxZoom: z.number().min(0).max(24).optional(),
 });
 
 export const StyleConfigSchema = z.discriminatedUnion('type', [
@@ -422,6 +435,10 @@ export const GlobalSearchConfigSchema = z.object({
 
 // --- Property Display Config ---
 
+/** How a property's value is rendered in popups/detail panels. */
+export const PROPERTY_DISPLAY_TYPES = ['text', 'link'] as const;
+export type PropertyDisplayType = (typeof PROPERTY_DISPLAY_TYPES)[number];
+
 export const PropertyDisplaySchema = z.object({
   label: z.string().optional(),
   visible: z.boolean().optional().default(true),
@@ -429,6 +446,16 @@ export const PropertyDisplaySchema = z.object({
   // stores config as jsonb, which normalizes object key order. Entries
   // without `order` sort after ordered ones, in key order.
   order: z.number().int().min(0).optional(),
+  // Generic display-type mechanism for property values. Semantic default is
+  // 'text' (undefined === 'text'; no Zod default so legacy configs round-trip
+  // byte-for-byte and the editor can omit it). 'link' renders the value as an
+  // <a target="_blank" rel="noopener noreferrer"> when it is a safe http(s)
+  // URL (see isSafeHttpUrl); any other value for a 'link' field silently
+  // falls back to plain text. Extensible for future display kinds.
+  type: z.enum(PROPERTY_DISPLAY_TYPES).optional(),
+  // Custom anchor text for type: 'link' entries (e.g. "View Assessor Record").
+  // Falls back to a generic "Open" label when unset. Ignored for type: 'text'.
+  linkText: z.string().optional(),
 });
 
 export const PropertyDisplayConfigSchema = z.record(z.string(), PropertyDisplaySchema);
@@ -720,6 +747,16 @@ export const UIConfigSchema = z.object({
    */
   legendDisplay: LegendDisplayConfigSchema.optional(),
   coordinateFormat: z.enum(COORDINATE_FORMATS).default('decimal-degrees'),
+  /**
+   * Default `text-font` fallback list applied to `symbol` styles that don't
+   * set their own `layout['text-font']`. An explicit `text-font` on a style
+   * always wins. Must reference a font stack name actually served by the
+   * active basemap's `glyphs` endpoint (e.g. CARTO/OpenMapTiles glyph
+   * servers) — an unmatched name silently fails to render text rather than
+   * erroring. Defaults to "Open Sans Bold" (bleeds less inside text halos
+   * than the regular weight).
+   */
+  defaultLabelFont: z.array(z.string().min(1)).min(1).default(['Open Sans Bold']),
 });
 
 /** Returns the effective control order, falling back to defaults and appending any missing keys. */
@@ -881,6 +918,7 @@ export const MapConfigSchema = z.object({
     controlLayout: 'individual',
     sideMenuToggleCorner: 'top-right',
     coordinateFormat: 'decimal-degrees',
+    defaultLabelFont: ['Open Sans Bold'],
   }),
   initialView: ViewConfigSchema,
   branding: BrandingConfigSchema.optional(),
@@ -899,6 +937,19 @@ export const MapConfigSchema = z.object({
         path: ['imageryLayers', i, 'collection'],
         message: 'Collection is required when not using a custom tile URL',
       });
+    }
+  }
+  // Per-style zoom bounds: each style's own minZoom must not exceed its own
+  // maxZoom. (The 0-24 range is enforced field-level on the style schemas.)
+  for (const [li, layer] of data.layers.entries()) {
+    for (const [si, style] of (layer.styles ?? []).entries()) {
+      if (style.minZoom != null && style.maxZoom != null && style.minZoom > style.maxZoom) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['layers', li, 'styles', si, 'minZoom'],
+          message: 'minZoom must be less than or equal to maxZoom',
+        });
+      }
     }
   }
 });

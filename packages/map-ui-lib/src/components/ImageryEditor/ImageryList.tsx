@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ImageryLayerConfig, MapSource } from '../../types';
 import { isOgcApiSource } from '../../utils/wmts';
+import { resolveDisplayLabel } from '../../utils/labelUtils';
 import { ImageryEditor } from './ImageryEditor';
 import { ConfirmDialog } from '../admin/ConfirmDialog';
 
@@ -85,7 +86,7 @@ export function ImageryList({
               <div className="mapui:flex mapui:items-center mapui:justify-between mapui:px-3 mapui:py-2">
                 <div className="mapui:flex mapui:items-center mapui:gap-2 mapui:min-w-0">
                   <span className="mapui:text-sm mapui:font-medium mapui:text-slate-800 mapui:truncate">
-                    {layer.label || layer.id || 'Untitled'}
+                    {resolveDisplayLabel(layer) || 'Untitled'}
                   </span>
                   {layer.exclusive && (
                     <span className="mapui:text-xs mapui:rounded-full mapui:bg-amber-100 mapui:text-amber-700 mapui:px-1.5 mapui:py-0.5">
@@ -170,7 +171,7 @@ export function ImageryList({
       <ConfirmDialog
         open={confirmDeleteIndex !== null}
         title="Delete Imagery Layer"
-        description={`Delete "${imageryLayers[confirmDeleteIndex ?? 0]?.label ?? 'this layer'}"?`}
+        description={`Delete "${resolveDisplayLabel(imageryLayers[confirmDeleteIndex ?? 0] ?? { id: '', label: '' }) || 'this layer'}"?`}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDeleteIndex(null)}
       />

@@ -8,7 +8,7 @@ export interface SourceUrlEntry {
   /** Pre-computed tile URL template for WMTS sources. */
   tileUrlTemplate?: string;
   isWmts?: boolean;
-  /** Deepest native zoom for WMTS sources; renderers pass it as Source maxzoom. */
+  /** Deepest native zoom of the source; renderers pass it as Source maxzoom. */
   maxZoom?: number;
 }
 
@@ -30,6 +30,7 @@ export function buildSourceUrlMap(sources: MapSource[]): SourceUrlMap {
         url: source.url,
         tileMatrixSetId: source.tileMatrixSetId,
         auth: source.auth,
+        maxZoom: source.maxZoom,
       };
     } else {
       map[source.id] = {

@@ -1,4 +1,5 @@
-import type { PropertyDisplayConfig, AvailableProperty } from '../../types';
+import type { PropertyDisplayConfig, PropertyDisplayType, AvailableProperty } from '../../types';
+import { PROPERTY_DISPLAY_TYPES } from '../../types';
 import { sortedPropertyDisplayEntries } from '../../utils/propertyDisplay';
 import { FormField } from '../admin/FormField';
 
@@ -8,13 +9,21 @@ export interface PropertyDisplayEditorProps {
   availableProperties?: AvailableProperty[];
 }
 
-export type PropertyEntry = { key: string; label: string; visible: boolean };
+export type PropertyEntry = {
+  key: string;
+  label: string;
+  visible: boolean;
+  type: PropertyDisplayType;
+  linkText: string;
+};
 
 export function toEntries(config: PropertyDisplayConfig): PropertyEntry[] {
   return sortedPropertyDisplayEntries(config).map(([key, val]) => ({
     key,
     label: val.label ?? '',
     visible: val.visible ?? true,
+    type: val.type ?? 'text',
+    linkText: val.linkText ?? '',
   }));
 }
 
@@ -25,10 +34,19 @@ export function fromEntries(entries: PropertyEntry[]): PropertyDisplayConfig {
       visible: entry.visible,
       order: index,
       ...(entry.label ? { label: entry.label } : {}),
+      // 'text' is the semantic default — omit it (and linkText) from output so
+      // legacy configs round-trip unchanged.
+      ...(entry.type && entry.type !== 'text' ? { type: entry.type } : {}),
+      ...(entry.type === 'link' && entry.linkText ? { linkText: entry.linkText } : {}),
     };
   });
   return result;
 }
+
+const TYPE_LABELS: Record<PropertyDisplayType, string> = {
+  text: 'Text',
+  link: 'Link (opens in new tab)',
+};
 
 const inputClass =
   'mapui:rounded mapui:border mapui:border-slate-300 mapui:px-2 mapui:py-1 mapui:text-sm mapui:outline-none focus:mapui:border-blue-500 focus:mapui:ring-1 focus:mapui:ring-blue-500';
@@ -40,7 +58,7 @@ export function PropertyDisplayEditor({ value, onChange, availableProperties }: 
   const update = (updated: PropertyEntry[]) => onChange(fromEntries(updated));
 
   const handleAdd = () => {
-    update([...entries, { key: '', label: '', visible: true }]);
+    update([...entries, { key: '', label: '', visible: true, type: 'text', linkText: '' }]);
   };
 
   const handleRemove = (index: number) => {
@@ -78,6 +96,8 @@ export function PropertyDisplayEditor({ value, onChange, availableProperties }: 
       key: p.name,
       label: p.title ?? '',
       visible: true,
+      type: 'text',
+      linkText: '',
     }));
     update(newEntries);
   };
@@ -101,9 +121,10 @@ export function PropertyDisplayEditor({ value, onChange, availableProperties }: 
         </>
       ) : (
         <>
-          <div className="mapui:grid mapui:items-center mapui:gap-2 mapui:px-8" style={{ gridTemplateColumns: '1fr 1fr auto' }}>
+          <div className="mapui:grid mapui:items-center mapui:gap-2 mapui:px-8" style={{ gridTemplateColumns: '1fr 1fr auto auto' }}>
             <FormField label="Property Key"><span /></FormField>
             <FormField label="Display Label"><span /></FormField>
+            <span className="mapui:text-xs mapui:font-medium mapui:text-slate-600">Type</span>
             <span className="mapui:text-xs mapui:font-medium mapui:text-slate-600">Visible</span>
           </div>
 
@@ -131,54 +152,84 @@ export function PropertyDisplayEditor({ value, onChange, availableProperties }: 
                   </button>
                 </div>
 
-                <div className="mapui:grid mapui:flex-1 mapui:items-center mapui:gap-2" style={{ gridTemplateColumns: '1fr 1fr auto auto' }}>
-                  {hasProperties ? (
+                <div className="mapui:flex mapui:flex-1 mapui:flex-col mapui:gap-1.5">
+                  <div className="mapui:grid mapui:items-center mapui:gap-2" style={{ gridTemplateColumns: '1fr 1fr auto auto auto' }}>
+                    {hasProperties ? (
+                      <select
+                        value={entry.key}
+                        onChange={(e) => handleKeyChange(index, e.target.value)}
+                        aria-label="Property key"
+                        className={inputClass}
+                      >
+                        <option value="">Select a property…</option>
+                        {availableProperties.map((p) => (
+                          <option key={p.name} value={p.name}>
+                            {p.title ?? p.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={entry.key}
+                        onChange={(e) => handleChange(index, { key: e.target.value })}
+                        placeholder="property_name"
+                        aria-label="Property key"
+                        className={inputClass}
+                      />
+                    )}
+                    <input
+                      type="text"
+                      value={entry.label}
+                      onChange={(e) => handleChange(index, { label: e.target.value })}
+                      placeholder="Friendly name"
+                      aria-label="Display label"
+                      className={inputClass}
+                    />
                     <select
-                      value={entry.key}
-                      onChange={(e) => handleKeyChange(index, e.target.value)}
-                      aria-label="Property key"
+                      value={entry.type}
+                      onChange={(e) => handleChange(index, { type: e.target.value as PropertyDisplayType })}
+                      aria-label="Display type"
                       className={inputClass}
                     >
-                      <option value="">Select a property…</option>
-                      {availableProperties.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.title ?? p.name}
+                      {PROPERTY_DISPLAY_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {TYPE_LABELS[t]}
                         </option>
                       ))}
                     </select>
-                  ) : (
                     <input
-                      type="text"
-                      value={entry.key}
-                      onChange={(e) => handleChange(index, { key: e.target.value })}
-                      placeholder="property_name"
-                      aria-label="Property key"
-                      className={inputClass}
+                      type="checkbox"
+                      checked={entry.visible}
+                      onChange={(e) => handleChange(index, { visible: e.target.checked })}
+                      aria-label="Visible"
+                      className="mapui:h-4 mapui:w-4 mapui:accent-blue-600"
                     />
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(index)}
+                      aria-label="Remove property"
+                      className="mapui:cursor-pointer mapui:rounded mapui:border mapui:border-red-200 mapui:bg-white mapui:px-2 mapui:py-0.5 mapui:text-xs mapui:text-red-600 hover:mapui:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {entry.type === 'link' && (
+                    <div className="mapui:flex mapui:items-center mapui:gap-2">
+                      <input
+                        type="text"
+                        value={entry.linkText}
+                        onChange={(e) => handleChange(index, { linkText: e.target.value })}
+                        placeholder="Open ↗"
+                        aria-label="Button text"
+                        className={inputClass}
+                      />
+                      <span className="mapui:text-xs mapui:text-slate-500">
+                        Rendered as a link only when the value is a valid http(s) URL; other values
+                        show as plain text.
+                      </span>
+                    </div>
                   )}
-                  <input
-                    type="text"
-                    value={entry.label}
-                    onChange={(e) => handleChange(index, { label: e.target.value })}
-                    placeholder="Friendly name"
-                    aria-label="Display label"
-                    className={inputClass}
-                  />
-                  <input
-                    type="checkbox"
-                    checked={entry.visible}
-                    onChange={(e) => handleChange(index, { visible: e.target.checked })}
-                    aria-label="Visible"
-                    className="mapui:h-4 mapui:w-4 mapui:accent-blue-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(index)}
-                    aria-label="Remove property"
-                    className="mapui:cursor-pointer mapui:rounded mapui:border mapui:border-red-200 mapui:bg-white mapui:px-2 mapui:py-0.5 mapui:text-xs mapui:text-red-600 hover:mapui:bg-red-50"
-                  >
-                    Remove
-                  </button>
                 </div>
               </li>
             ))}

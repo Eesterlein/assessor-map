@@ -44,6 +44,40 @@ describe('StyleCard reorder controls', () => {
   });
 });
 
+describe('StyleCard zoom chip', () => {
+  it('renders a z{min}–{max} chip when zoom bounds are set, filling unset ends', () => {
+    const bounded = renderToStaticMarkup(
+      <StyleCard index={0} style={{ ...fill, minZoom: 11, maxZoom: 15 }}>
+        <div />
+      </StyleCard>,
+    );
+    expect(bounded).toContain('z11–15');
+
+    const minOnly = renderToStaticMarkup(
+      <StyleCard index={0} style={{ ...fill, minZoom: 12 }}>
+        <div />
+      </StyleCard>,
+    );
+    expect(minOnly).toContain('z12–24');
+
+    const maxOnly = renderToStaticMarkup(
+      <StyleCard index={0} style={{ ...fill, maxZoom: 10 }}>
+        <div />
+      </StyleCard>,
+    );
+    expect(maxOnly).toContain('z0–10');
+  });
+
+  it('omits the chip when no zoom bounds are set', () => {
+    const html = renderToStaticMarkup(
+      <StyleCard index={0} style={fill}>
+        <div />
+      </StyleCard>,
+    );
+    expect(html).not.toMatch(/z\d+–\d+/);
+  });
+});
+
 // The swap logic used by LayerEditor: reordering the styles array is the source
 // of truth for render order, so a correct swap is the whole feature.
 describe('style array reorder semantics', () => {

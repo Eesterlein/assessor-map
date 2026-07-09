@@ -3,7 +3,11 @@
  * and returns a structured result with graceful error handling.
  */
 
-import { detectTileSourceType } from '@techtraverse/map-ui-lib/hooks';
+import {
+  detectTileSourceType,
+  fetchArcgisServiceInfo,
+  type ArcgisTileMetadata,
+} from '@techtraverse/map-ui-lib/hooks';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const COLLECTION_BATCH_SIZE = 5;
@@ -55,6 +59,7 @@ export interface InspectionResult {
   inspectedAt: string;
   errors: string[];
   tileJson?: TileJsonMeta;
+  arcgis?: ArcgisTileMetadata;
   refreshUrl?: string;
 }
 
@@ -325,6 +330,34 @@ async function inspectTileJsonSource(url: string): Promise<InspectionResult> {
   }
 }
 
+// --- ArcGIS cached MapServer inspection ---
+
+async function inspectArcgisSource(url: string): Promise<InspectionResult> {
+  try {
+    const meta = await fetchArcgisServiceInfo(
+      normalizeUrl(url),
+      undefined,
+      AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    );
+    return {
+      landing: { title: meta.name, description: meta.attribution },
+      conformance: null,
+      collections: [],
+      inspectedAt: new Date().toISOString(),
+      errors: [],
+      arcgis: meta,
+    };
+  } catch (err) {
+    return {
+      landing: null,
+      conformance: null,
+      collections: [],
+      inspectedAt: new Date().toISOString(),
+      errors: [`ArcGIS inspection failed: ${errorMessage(err)}`],
+    };
+  }
+}
+
 // --- Main inspection router ---
 
 export async function inspectSource(url: string): Promise<InspectionResult> {
@@ -332,6 +365,10 @@ export async function inspectSource(url: string): Promise<InspectionResult> {
 
   if (sourceType === 'tilejson') {
     return inspectTileJsonSource(url);
+  }
+
+  if (sourceType === 'arcgis') {
+    return inspectArcgisSource(url);
   }
 
   if (sourceType === 'xyz') {

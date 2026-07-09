@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toEntries, fromEntries } from '../PropertyDisplayEditor';
+import { toEntries, fromEntries, type PropertyEntry } from '../PropertyDisplayEditor';
 import type { PropertyDisplayConfig } from '../../../types';
 
 describe('toEntries', () => {
@@ -13,8 +13,29 @@ describe('toEntries', () => {
       internal_id: { visible: false },
     };
     expect(toEntries(config)).toEqual([
-      { key: 'name', label: 'Country Name', visible: true },
-      { key: 'internal_id', label: '', visible: false },
+      { key: 'name', label: 'Country Name', visible: true, type: 'text', linkText: '' },
+      { key: 'internal_id', label: '', visible: false, type: 'text', linkText: '' },
+    ]);
+  });
+
+  it('defaults type to text and linkText to empty string when absent', () => {
+    const config: PropertyDisplayConfig = { name: { visible: true } };
+    expect(toEntries(config)[0].type).toBe('text');
+    expect(toEntries(config)[0].linkText).toBe('');
+  });
+
+  it('surfaces explicit type: link and linkText', () => {
+    const config: PropertyDisplayConfig = {
+      assessorlink: { label: 'Assessor Record', visible: true, type: 'link', linkText: 'View Assessor Record' },
+    };
+    expect(toEntries(config)).toEqual([
+      {
+        key: 'assessorlink',
+        label: 'Assessor Record',
+        visible: true,
+        type: 'link',
+        linkText: 'View Assessor Record',
+      },
     ]);
   });
 
@@ -62,9 +83,9 @@ describe('fromEntries', () => {
   });
 
   it('converts entries back to record, stamping order from array position', () => {
-    const entries = [
-      { key: 'name', label: 'Country Name', visible: true },
-      { key: 'internal_id', label: '', visible: false },
+    const entries: PropertyEntry[] = [
+      { key: 'name', label: 'Country Name', visible: true, type: 'text', linkText: '' },
+      { key: 'internal_id', label: '', visible: false, type: 'text', linkText: '' },
     ];
     expect(fromEntries(entries)).toEqual({
       name: { label: 'Country Name', visible: true, order: 0 },
@@ -73,16 +94,56 @@ describe('fromEntries', () => {
   });
 
   it('omits label key when label is empty string', () => {
-    const entries = [{ key: 'name', label: '', visible: true }];
+    const entries: PropertyEntry[] = [
+      { key: 'name', label: '', visible: true, type: 'text', linkText: '' },
+    ];
     const result = fromEntries(entries);
     expect(result.name).toEqual({ visible: true, order: 0 });
     expect('label' in result.name).toBe(false);
   });
 
+  it('omits type and linkText keys when type is text', () => {
+    const entries: PropertyEntry[] = [
+      { key: 'name', label: '', visible: true, type: 'text', linkText: 'ignored' },
+    ];
+    const result = fromEntries(entries);
+    expect(result.name).toEqual({ visible: true, order: 0 });
+    expect('type' in result.name).toBe(false);
+    expect('linkText' in result.name).toBe(false);
+  });
+
+  it('includes type: link and linkText when set', () => {
+    const entries: PropertyEntry[] = [
+      {
+        key: 'assessorlink',
+        label: 'Assessor Record',
+        visible: true,
+        type: 'link',
+        linkText: 'View Assessor Record',
+      },
+    ];
+    expect(fromEntries(entries)).toEqual({
+      assessorlink: {
+        label: 'Assessor Record',
+        visible: true,
+        order: 0,
+        type: 'link',
+        linkText: 'View Assessor Record',
+      },
+    });
+  });
+
+  it('omits linkText but keeps type when linkText is empty on a link entry', () => {
+    const entries: PropertyEntry[] = [
+      { key: 'website', label: '', visible: true, type: 'link', linkText: '' },
+    ];
+    expect(fromEntries(entries).website).toEqual({ visible: true, order: 0, type: 'link' });
+  });
+
   it('preserves entry order in the record', () => {
-    const entries = [
-      { key: 'z_prop', label: '', visible: true },
-      { key: 'a_prop', label: '', visible: true },
+    const entries: PropertyEntry[] = [
+      { key: 'z_prop', label: '', visible: true, type: 'text', linkText: '' },
+      { key: 'a_prop', label: '', visible: true, type: 'text', linkText: '' },
     ];
     expect(Object.keys(fromEntries(entries))).toEqual(['z_prop', 'a_prop']);
   });
@@ -92,9 +153,35 @@ describe('round-trip: toEntries → mutate → fromEntries', () => {
   it('adding a property creates entry with visible: true', () => {
     const config: PropertyDisplayConfig = { name: { label: 'Name', visible: true } };
     const entries = toEntries(config);
-    const updated = [...entries, { key: 'new_prop', label: '', visible: true }];
+    const updated: PropertyEntry[] = [
+      ...entries,
+      { key: 'new_prop', label: '', visible: true, type: 'text', linkText: '' },
+    ];
     const result = fromEntries(updated);
     expect(result['new_prop']).toEqual({ visible: true, order: 1 });
+  });
+
+  it('link entry survives toEntries -> fromEntries round-trip', () => {
+    const config: PropertyDisplayConfig = {
+      name: { label: 'Name', visible: true, order: 0 },
+      assessorlink: {
+        label: 'Assessor Record',
+        visible: true,
+        order: 1,
+        type: 'link',
+        linkText: 'View Assessor Record',
+      },
+    };
+    expect(fromEntries(toEntries(config))).toEqual(config);
+  });
+
+  it('switching a text entry to link adds type via fromEntries', () => {
+    const config: PropertyDisplayConfig = { assessorlink: { visible: true } };
+    const entries = toEntries(config);
+    const updated = entries.map((e) =>
+      e.key === 'assessorlink' ? { ...e, type: 'link' as const } : e,
+    );
+    expect(fromEntries(updated).assessorlink).toEqual({ visible: true, order: 0, type: 'link' });
   });
 
   it('changing a label updates the record', () => {

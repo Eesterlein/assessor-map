@@ -222,3 +222,34 @@ export function inferActivePresetId(styles: StyleConfig[] | undefined | null): s
   }
   return null;
 }
+
+/**
+ * Builds the symbol style produced by the LayerEditor "+ Add road shields"
+ * quick action: a tintable SDF shield icon from the bundled default sprite
+ * sheet (`shields:shield-generic`) stretched to hug the route-number text
+ * via icon-text-fit.
+ */
+export function buildRoadShieldsStyle(
+  labelProp: string,
+  geometryFilter?: ('LineString' | 'MultiLineString')[],
+): SymbolStyle {
+  return {
+    type: 'symbol',
+    paint: {
+      'icon-color': '#1a5fb4',
+      'text-color': '#ffffff',
+    },
+    layout: {
+      'text-field': `{${labelProp}}`,
+      'text-size': 10,
+      'symbol-placement': 'line',
+      'symbol-spacing': 300,
+      'icon-image': 'shields:shield-generic',
+      'icon-text-fit': 'both',
+      'icon-text-fit-padding': [2, 6, 2, 6],
+      'icon-allow-overlap': false,
+      'text-allow-overlap': false,
+    },
+    ...(geometryFilter ? { geometryFilter } : {}),
+  };
+}

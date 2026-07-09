@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePropertyDisplay } from '../propertyDisplay';
+import { resolvePropertyDisplay, isSafeHttpUrl } from '../propertyDisplay';
 
 describe('resolvePropertyDisplay', () => {
   it('returns undefined when input is undefined', () => {
@@ -7,7 +7,7 @@ describe('resolvePropertyDisplay', () => {
   });
 
   it('returns empty fields and labels for an empty config', () => {
-    expect(resolvePropertyDisplay({})).toEqual({ fields: [], labels: {} });
+    expect(resolvePropertyDisplay({})).toEqual({ fields: [], labels: {}, types: {}, linkText: {} });
   });
 
   it('filters out properties with visible: false', () => {
@@ -81,6 +81,81 @@ describe('resolvePropertyDisplay', () => {
     expect(result).toEqual({
       fields: ['first', 'second'],
       labels: { first: 'First', second: 'Second' },
+      types: {},
+      linkText: {},
     });
+  });
+
+  it('records type: link entries in types, omitting text/default entries', () => {
+    const result = resolvePropertyDisplay({
+      assessorlink: { type: 'link' },
+      owner: { type: 'text' },
+      acres: {},
+    });
+    expect(result?.types).toEqual({ assessorlink: 'link' });
+    expect('owner' in (result?.types ?? {})).toBe(false);
+    expect('acres' in (result?.types ?? {})).toBe(false);
+    expect(result?.fields).toEqual(['assessorlink', 'owner', 'acres']);
+  });
+
+  it('records linkText only when set', () => {
+    const result = resolvePropertyDisplay({
+      assessorlink: { type: 'link', linkText: 'View Assessor Record' },
+      website: { type: 'link' },
+    });
+    expect(result?.linkText).toEqual({ assessorlink: 'View Assessor Record' });
+  });
+
+  it('skips types/linkText for hidden entries', () => {
+    const result = resolvePropertyDisplay({
+      hidden: { type: 'link', linkText: 'Open', visible: false },
+    });
+    expect(result).toEqual({ fields: [], labels: {}, types: {}, linkText: {} });
+  });
+});
+
+describe('isSafeHttpUrl', () => {
+  it('accepts absolute https URLs', () => {
+    expect(isSafeHttpUrl('https://property.spatialest.com/co/gunnison#/property/R005219')).toBe(true);
+  });
+
+  it('accepts absolute http URLs', () => {
+    expect(isSafeHttpUrl('http://example.com/path?q=1')).toBe(true);
+  });
+
+  it('rejects javascript: URIs', () => {
+    expect(isSafeHttpUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafeHttpUrl('JavaScript:alert(1)')).toBe(false);
+  });
+
+  it('rejects data: URIs', () => {
+    expect(isSafeHttpUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
+  });
+
+  it('rejects other protocols', () => {
+    expect(isSafeHttpUrl('ftp://example.com/file')).toBe(false);
+    expect(isSafeHttpUrl('mailto:someone@example.com')).toBe(false);
+    expect(isSafeHttpUrl('vbscript:msgbox(1)')).toBe(false);
+  });
+
+  it('rejects relative paths and protocol-relative URLs', () => {
+    expect(isSafeHttpUrl('/relative/path')).toBe(false);
+    expect(isSafeHttpUrl('relative/path')).toBe(false);
+    expect(isSafeHttpUrl('//example.com/path')).toBe(false);
+  });
+
+  it('rejects non-string values', () => {
+    expect(isSafeHttpUrl(42)).toBe(false);
+    expect(isSafeHttpUrl(null)).toBe(false);
+    expect(isSafeHttpUrl(undefined)).toBe(false);
+    expect(isSafeHttpUrl({ href: 'https://example.com' })).toBe(false);
+    expect(isSafeHttpUrl(['https://example.com'])).toBe(false);
+    expect(isSafeHttpUrl(true)).toBe(false);
+  });
+
+  it('rejects malformed and empty strings', () => {
+    expect(isSafeHttpUrl('')).toBe(false);
+    expect(isSafeHttpUrl('not a url')).toBe(false);
+    expect(isSafeHttpUrl('http://')).toBe(false);
   });
 });

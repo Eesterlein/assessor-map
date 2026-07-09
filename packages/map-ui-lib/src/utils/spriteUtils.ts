@@ -4,6 +4,40 @@
  */
 
 /**
+ * Reserved sprite id for the bundled default highway-shield sprite sheet.
+ * A custom SpriteSource with this id overrides/replaces the bundled one.
+ */
+export const DEFAULT_SHIELD_SPRITE_ID = 'shields';
+
+/**
+ * App-relative path (no extension) where both apps serve the bundled shield
+ * sprite from their public/ dir. MapLibre appends .json/.png (and @2x).
+ */
+export const DEFAULT_SHIELD_SPRITE_PATH = 'sprites/shields/sprite';
+
+/**
+ * Builds the {id, url} sprite source for the bundled default shield sprite,
+ * resolved against the app's base URL (e.g. `${location.origin}${BASE_URL}`).
+ */
+export function getDefaultShieldSprite(appBaseUrl: string): { id: string; url: string } {
+  const base = appBaseUrl.endsWith('/') ? appBaseUrl : `${appBaseUrl}/`;
+  return { id: DEFAULT_SHIELD_SPRITE_ID, url: new URL(DEFAULT_SHIELD_SPRITE_PATH, base).href };
+}
+
+/**
+ * Prepends the bundled default shield sprite to a sprite-source list, unless
+ * the caller already supplies a sprite with the reserved id "shields" (which
+ * then overrides the bundled sheet entirely).
+ */
+export function withDefaultShieldSprite(
+  sprites: Array<{ id: string; url: string }>,
+  appBaseUrl: string,
+): Array<{ id: string; url: string }> {
+  if (sprites.some((s) => s.id === DEFAULT_SHIELD_SPRITE_ID)) return sprites;
+  return [getDefaultShieldSprite(appBaseUrl), ...sprites];
+}
+
+/**
  * Fetches a basemap style JSON and returns its `sprite` URL (string form).
  * Returns null if the style has no sprite or the fetch fails.
  */

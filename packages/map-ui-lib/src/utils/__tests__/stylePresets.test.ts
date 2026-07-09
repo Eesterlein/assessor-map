@@ -3,6 +3,7 @@ import {
   STYLE_PRESETS,
   getPresetsForGeometries,
   inferActivePresetId,
+  buildRoadShieldsStyle,
 } from '../stylePresets';
 import { StyleConfigSchema } from '../../schemas/config';
 import type { StyleConfig } from '../../types';
@@ -118,5 +119,35 @@ describe('inferActivePresetId', () => {
       { type: 'symbol', paint: {}, layout: { 'text-field': '{name}' } },
     ];
     expect(inferActivePresetId(custom)).toBeNull();
+  });
+});
+
+describe('buildRoadShieldsStyle', () => {
+  it('produces a symbol style with both icon-image and text-field on one layer', () => {
+    const style = buildRoadShieldsStyle('route_num');
+    expect(style.type).toBe('symbol');
+    expect(style.layout?.['icon-image']).toBe('shields:shield-generic');
+    expect(style.layout?.['text-field']).toBe('{route_num}');
+    expect(style.layout?.['icon-text-fit']).toBe('both');
+    expect(style.layout?.['icon-text-fit-padding']).toEqual([2, 6, 2, 6]);
+    expect(style.layout?.['symbol-placement']).toBe('line');
+    expect(style.layout?.['symbol-spacing']).toBe(300);
+    expect(style.paint['icon-color']).toBe('#1a5fb4');
+    expect(style.paint['text-color']).toBe('#ffffff');
+    expect(style.geometryFilter).toBeUndefined();
+  });
+
+  it('attaches a line geometryFilter for mixed-geometry sources', () => {
+    const style = buildRoadShieldsStyle('name', ['LineString', 'MultiLineString']);
+    expect(style.geometryFilter).toEqual(['LineString', 'MultiLineString']);
+  });
+
+  it('is schema-valid StyleConfig', () => {
+    const parsed = StyleConfigSchema.safeParse(buildRoadShieldsStyle('ref'));
+    expect(parsed.success).toBe(true);
+    const filtered = StyleConfigSchema.safeParse(
+      buildRoadShieldsStyle('ref', ['LineString', 'MultiLineString']),
+    );
+    expect(filtered.success).toBe(true);
   });
 });

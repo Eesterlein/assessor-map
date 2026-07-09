@@ -20,7 +20,7 @@ import {
   isOgcApiSource,
   getLayerSubLayerIds,
 } from '@techtraverse/map-ui-lib/utils';
-import type { Cql2FilterConfig } from '@techtraverse/map-ui-lib/types';
+import type { Cql2FilterConfig, PropertyDisplayType } from '@techtraverse/map-ui-lib/types';
 import { useMapStore, useEffectiveCql2Filters } from '../stores/mapStore';
 import { MapContainer } from './MapContainer';
 import { MapOverlay } from './MapOverlay';
@@ -36,6 +36,8 @@ interface FeatureInfo {
   title?: string;
   fields?: string[];
   labels?: Record<string, string>;
+  types?: Record<string, PropertyDisplayType>;
+  linkText?: Record<string, string>;
 }
 
 export function Layout({ uiConfig }: LayoutProps) {
@@ -304,6 +306,8 @@ export function Layout({ uiConfig }: LayoutProps) {
                   title: layer?.label ?? (info.properties['name'] as string) ?? info.layerId,
                   fields: resolved?.fields,
                   labels: resolved?.labels,
+                  types: resolved?.types,
+                  linkText: resolved?.linkText,
                 }];
               }),
             );
@@ -329,6 +333,8 @@ export function Layout({ uiConfig }: LayoutProps) {
                     title: layer?.label ?? (info.properties['name'] as string),
                     fields: resolved?.fields,
                     labels: resolved?.labels,
+                    types: resolved?.types,
+                    linkText: resolved?.linkText,
                   }];
                 }),
               );

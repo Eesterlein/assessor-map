@@ -372,6 +372,8 @@ Displays properties for a selected map feature. Supports an inline panel variant
 | `properties` | `Record<string, unknown> \| null` | Yes | Feature properties to display |
 | `title` | `string` | No (default `'Feature Properties'`) | Panel header text |
 | `fields` | `string[]` | No | Subset of property keys to display; shows all keys if omitted |
+| `types` | `Record<string, PropertyDisplayType>` | No | Per-field display type from `resolvePropertyDisplay()`; a key's absence means `'text'` |
+| `linkText` | `Record<string, string>` | No | Per-field anchor text for `type: 'link'` fields (defaults to "Open ↗") |
 | `variant` | `'panel' \| 'modal'` | No (default `'panel'`) | Inline panel or full-screen modal |
 | `className` | `string` | No | Additional CSS classes |
 
@@ -381,6 +383,7 @@ Displays properties for a selected map feature. Supports an inline panel variant
 - **Panel variant**: inline container, `w-72`, scrollable up to `calc(100vh - 4rem)`.
 - **Modal variant**: full-screen backdrop (`bg-black/40`); clicking the backdrop calls `onClose`; clicking inside the panel stops propagation.
 - Uses `PropertyList` internally to render key–value pairs.
+- Fields with `types[key] === 'link'` render as `<a target="_blank" rel="noopener noreferrer">` when the value is a safe http(s) URL; any other value falls back to plain text.
 - Shows "No properties available." when `properties` is `null` or empty.
 
 ### Example
@@ -417,6 +420,8 @@ A compact tooltip that shows a preview of feature properties. The caller is resp
 | `title` | `string` | No | Optional title shown above the property list |
 | `properties` | `Record<string, unknown> \| null` | Yes | Feature properties to display |
 | `fields` | `string[]` | No | Subset of property keys to display; shows all keys if omitted |
+| `types` | `Record<string, PropertyDisplayType>` | No | Per-field display type from `resolvePropertyDisplay()`; a key's absence means `'text'` |
+| `linkText` | `Record<string, string>` | No | Per-field anchor text for `type: 'link'` fields (defaults to "Open ↗") |
 | `maxItems` | `number` | No (default `4`) | Max number of properties shown before truncation |
 | `className` | `string` | No | Additional CSS classes |
 
@@ -425,6 +430,7 @@ A compact tooltip that shows a preview of feature properties. The caller is resp
 - Shows "No data" when `properties` is `null`.
 - Truncates to `maxItems` fields with a "+N more" indicator when there are additional properties.
 - Uses compact density for the property list.
+- Fields with `types[key] === 'link'` render as `<a target="_blank" rel="noopener noreferrer">` when the value is a safe http(s) URL; any other value falls back to plain text.
 - No internal positioning — place it absolutely relative to cursor or map feature using CSS.
 
 ### Example
@@ -715,6 +721,11 @@ Manages `PropertyDisplayConfig` — the list of properties to show (and their la
 | `value` | `PropertyDisplayConfig` | Yes | Current property display config |
 | `onChange` | `(config: PropertyDisplayConfig) => void` | Yes | Called on any change |
 | `availableProperties` | `AvailableProperty[]` | No | Properties from API metadata for suggestions |
+
+### Behavior
+
+- Each property row has a **Type** selector (`Text` / `Link (opens in new tab)`). Selecting `Link` reveals a **Button text** input for the per-field `linkText` (anchor text, defaults to "Open ↗").
+- `type: 'text'` and empty `linkText` are omitted from the emitted config, so legacy configs round-trip unchanged.
 
 ---
 
