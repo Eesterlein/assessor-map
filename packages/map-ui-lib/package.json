@@ -92,7 +92,7 @@
     "@turf/length": "^7.3.4",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "optionalDependencies": {
     "@mapbox/shp-write": "^0.4.3",
