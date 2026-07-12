@@ -51,8 +51,8 @@ importers:
         specifier: ^7.3.4
         version: 7.3.4
       '@turf/helpers':
-        specifier: ^7.3.4
-        version: 7.3.4
+        specifier: ^7.3.5
+        version: 7.3.5
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -245,8 +245,8 @@ importers:
         specifier: ^7.3.4
         version: 7.3.4
       '@turf/helpers':
-        specifier: ^7.3.4
-        version: 7.3.4
+        specifier: ^7.3.5
+        version: 7.3.5
       '@types/proj4':
         specifier: ^2.19.0
         version: 2.19.0
@@ -333,8 +333,8 @@ importers:
         specifier: ^7.3.4
         version: 7.3.4
       '@turf/helpers':
-        specifier: ^7.3.4
-        version: 7.3.4
+        specifier: ^7.3.5
+        version: 7.3.5
       '@turf/length':
         specifier: ^7.3.4
         version: 7.3.4
@@ -2083,6 +2083,9 @@ packages:
 
   '@turf/helpers@7.3.4':
     resolution: {integrity: sha512-U/S5qyqgx3WTvg4twaH0WxF3EixoTCfDsmk98g1E3/5e2YKp7JKYZdz0vivsS5/UZLJeZDEElOSFH4pUgp+l7g==}
+
+  '@turf/helpers@7.3.5':
+    resolution: {integrity: sha512-E/NMGV5MwbjjP7AJXBtsanC3yY8N2MQ87IGdIgkB2ji5AtBpwnH4L3gEqpYN4RlCJJWbLbzO91BbKv2waUd0eg==}
 
   '@turf/intersect@6.5.0':
     resolution: {integrity: sha512-2legGJeKrfFkzntcd4GouPugoqPUjexPZnOvfez+3SfIMrHvulw8qV8u7pfVyn2Yqs53yoVCEjS5sEpvQ5YRQg==}
@@ -6776,6 +6779,11 @@ snapshots:
   '@turf/helpers@6.5.0': {}
 
   '@turf/helpers@7.3.4':
+    dependencies:
+      '@types/geojson': 7946.0.16
+      tslib: 2.8.1
+
+  '@turf/helpers@7.3.5':
     dependencies:
       '@types/geojson': 7946.0.16
       tslib: 2.8.1
