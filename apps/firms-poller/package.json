@@ -1,0 +1,16 @@
+{
+  "name": "firms-poller",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Polls NASA FIRMS active fire data and upserts into PostGIS",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

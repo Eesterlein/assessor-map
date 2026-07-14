@@ -46,5 +46,13 @@
     "height": 38,
     "pixelRatio": 1,
     "sdf": true
+  },
+  "fire-point": {
+    "x": 2,
+    "y": 128,
+    "width": 38,
+    "height": 38,
+    "pixelRatio": 1,
+    "sdf": true
   }
 }

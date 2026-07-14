@@ -41,6 +41,7 @@ const ICONS = [
   'shield-state',
   'shield-circle',
   'shield-rect',
+  'fire-point',
 ];
 
 /** Design size of each SVG (px at 1x). */
