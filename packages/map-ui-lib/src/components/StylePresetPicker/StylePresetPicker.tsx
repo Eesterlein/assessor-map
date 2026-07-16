@@ -62,6 +62,33 @@ function PresetCard({
   );
 }
 
+function PresetGroup({
+  label,
+  presets,
+  activeId,
+  onSelect,
+}: {
+  label: string | null;
+  presets: StylePreset[];
+  activeId: string | null;
+  onSelect: (p: StylePreset) => void;
+}) {
+  return (
+    <div className="mapui:flex mapui:flex-col mapui:gap-1.5">
+      {label && (
+        <span className="mapui:text-[10px] mapui:font-semibold mapui:uppercase mapui:tracking-widest mapui:text-slate-400">
+          {label}
+        </span>
+      )}
+      <div className="mapui:flex mapui:gap-2 mapui:overflow-x-auto mapui:pb-1">
+        {presets.map((p) => (
+          <PresetCard key={p.id} preset={p} active={p.id === activeId} onSelect={() => onSelect(p)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function StylePresetPicker({ geometries, value, onChange }: StylePresetPickerProps) {
   const presets = getPresetsForGeometries(geometries);
   const activeId = inferActivePresetId(value);
@@ -84,6 +111,15 @@ export function StylePresetPicker({ geometries, value, onChange }: StylePresetPi
     applyPreset(preset);
   };
 
+  // Partition into named categories and an unnamed generic group
+  const genericPresets = presets.filter((p) => !p.category);
+  const categoryMap = new Map<string, StylePreset[]>();
+  for (const p of presets) {
+    if (!p.category) continue;
+    if (!categoryMap.has(p.category)) categoryMap.set(p.category, []);
+    categoryMap.get(p.category)!.push(p);
+  }
+
   return (
     <div className="mapui:flex mapui:flex-col mapui:gap-2">
       <div className="mapui:flex mapui:items-center mapui:justify-between">
@@ -94,11 +130,26 @@ export function StylePresetPicker({ geometries, value, onChange }: StylePresetPi
           <span className="mapui:text-[10px] mapui:italic mapui:text-slate-400">Custom styles applied</span>
         )}
       </div>
-      <div className="mapui:flex mapui:gap-2 mapui:overflow-x-auto mapui:pb-1">
-        {presets.map((p) => (
-          <PresetCard key={p.id} preset={p} active={p.id === activeId} onSelect={() => handleSelect(p)} />
-        ))}
-      </div>
+
+      {genericPresets.length > 0 && (
+        <PresetGroup
+          label={categoryMap.size > 0 ? 'Generic' : null}
+          presets={genericPresets}
+          activeId={activeId}
+          onSelect={handleSelect}
+        />
+      )}
+
+      {Array.from(categoryMap.entries()).map(([cat, catPresets]) => (
+        <PresetGroup
+          key={cat}
+          label={cat}
+          presets={catPresets}
+          activeId={activeId}
+          onSelect={handleSelect}
+        />
+      ))}
+
       {pendingPreset && (
         <div className="mapui:flex mapui:items-center mapui:justify-between mapui:rounded mapui:border mapui:border-amber-200 mapui:bg-amber-50 mapui:px-3 mapui:py-2 mapui:text-xs mapui:text-amber-900">
           <span>

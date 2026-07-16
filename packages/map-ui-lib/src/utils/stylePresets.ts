@@ -7,6 +7,8 @@ export interface StylePreset {
   label: string;
   description: string;
   geometry: StylePresetGeometry;
+  /** Optional grouping label shown as a section header in the preset picker. */
+  category?: string;
   build: (color: string) => StyleConfig[];
 }
 
@@ -120,6 +122,59 @@ function presetPointCircleLabel(color: string): StyleConfig[] {
   ];
 }
 
+// --- Assessor-specific preset builders ---
+
+// Thin gray outline on transparent fill — the classic parcel overlay.
+// 0.75 px line (vs. generic polygon-outline's 1.5 px) so inferActivePresetId
+// can tell them apart.
+function presetParcelBoundaries(_color: string): StyleConfig[] {
+  return [
+    { type: 'fill', paint: { 'fill-color': '#000000', 'fill-opacity': 0, 'fill-antialias': false } } satisfies FillStyle,
+    { type: 'line', paint: { 'line-color': '#666666', 'line-width': 0.75, 'line-opacity': 1 } } satisfies LineStyle,
+  ];
+}
+
+// 30 % opacity fill + thin 1 px outline — ideal for thematic (choropleth) parcel maps.
+// Lower opacity than the generic polygon-fill-outline (45 %) keeps the base map readable.
+function presetParcelThematic(color: string): StyleConfig[] {
+  return [
+    { type: 'fill', paint: { 'fill-color': color, 'fill-opacity': 0.30, 'fill-outline-color': 'transparent', 'fill-antialias': true } } satisfies FillStyle,
+    { type: 'line', paint: { 'line-color': darken(color, 0.25), 'line-width': 1, 'line-opacity': 1 } } satisfies LineStyle,
+  ];
+}
+
+// 18 % fill with a 2 px border — district/zone polygons that need visibility
+// without completely obscuring the layers below.
+function presetZoningDistrict(color: string): StyleConfig[] {
+  return [
+    { type: 'fill', paint: { 'fill-color': color, 'fill-opacity': 0.18, 'fill-outline-color': 'transparent', 'fill-antialias': true } } satisfies FillStyle,
+    { type: 'line', paint: { 'line-color': color, 'line-width': 2, 'line-opacity': 0.9 } } satisfies LineStyle,
+  ];
+}
+
+// Long 8-4 dash at 2 px — typical for subdivision or district boundary lines.
+function presetBoundaryDashed(color: string): StyleConfig[] {
+  return [
+    { type: 'line', paint: { 'line-color': color, 'line-width': 2, 'line-opacity': 1, 'line-dasharray': [8, 4] } } satisfies LineStyle,
+  ];
+}
+
+// Small 3 px circle for dense address / parcel centroid point layers.
+function presetAddressPoint(color: string): StyleConfig[] {
+  return [
+    {
+      type: 'circle',
+      paint: {
+        'circle-color': color,
+        'circle-radius': 3,
+        'circle-opacity': 1,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 1,
+      },
+    } satisfies CircleStyle,
+  ];
+}
+
 export const STYLE_PRESETS: readonly StylePreset[] = Object.freeze([
   {
     id: 'polygon-fill',
@@ -184,6 +239,47 @@ export const STYLE_PRESETS: readonly StylePreset[] = Object.freeze([
     geometry: 'point',
     build: (color = DEFAULT_POINT_COLOR) => presetPointCircleLabel(color),
   },
+  // Assessor / GIS-specific presets
+  {
+    id: 'parcel-boundaries',
+    label: 'Parcel Boundaries',
+    description: 'Thin gray outline on a transparent fill — the standard parcel overlay look.',
+    geometry: 'polygon',
+    category: 'Assessor',
+    build: () => presetParcelBoundaries('#666666'),
+  },
+  {
+    id: 'parcel-thematic',
+    label: 'Thematic Fill',
+    description: 'Light translucent fill for choropleth / data-driven parcel maps.',
+    geometry: 'polygon',
+    category: 'Assessor',
+    build: (color = '#4a7fb5') => presetParcelThematic(color),
+  },
+  {
+    id: 'zoning-district',
+    label: 'Zoning / District',
+    description: 'Very light fill with a bold border — for zoning or district polygons.',
+    geometry: 'polygon',
+    category: 'Assessor',
+    build: (color = '#c87941') => presetZoningDistrict(color),
+  },
+  {
+    id: 'boundary-dashed',
+    label: 'District Boundary',
+    description: 'Long-dash line for subdivision or administrative boundary lines.',
+    geometry: 'line',
+    category: 'Assessor',
+    build: (color = '#7b4f2e') => presetBoundaryDashed(color),
+  },
+  {
+    id: 'address-point',
+    label: 'Address Point',
+    description: 'Small 3 px circle for dense address or parcel centroid data.',
+    geometry: 'point',
+    category: 'Assessor',
+    build: (color = '#1a73e8') => presetAddressPoint(color),
+  },
 ]);
 
 export function getPresetsForGeometries(geoms: StylePresetGeometry[]): StylePreset[] {
@@ -201,17 +297,31 @@ export function inferActivePresetId(styles: StyleConfig[] | undefined | null): s
   }
   if (types === 'fill,line') {
     const fill = styles[0] as FillStyle;
+    const line = styles[1] as LineStyle;
     const fillOpacity = fill.paint['fill-opacity'];
-    if (typeof fillOpacity === 'number' && fillOpacity === 0) return 'polygon-outline';
+    if (typeof fillOpacity === 'number' && fillOpacity === 0) {
+      // parcel-boundaries uses 0.75 px; polygon-outline uses 1.5 px
+      return (line.paint['line-width'] as number) <= 1 ? 'parcel-boundaries' : 'polygon-outline';
+    }
+    if (typeof fillOpacity === 'number' && fillOpacity <= 0.2) return 'zoning-district';
+    if (typeof fillOpacity === 'number' && fillOpacity <= 0.35) return 'parcel-thematic';
     return 'polygon-fill-outline';
   }
   if (types === 'line') {
     const line = styles[0] as LineStyle;
-    if (line.paint['line-dasharray']) return 'line-dashed';
+    if (Array.isArray(line.paint['line-dasharray'])) {
+      const dash = line.paint['line-dasharray'] as number[];
+      // boundary-dashed uses [8,4]; line-dashed uses [2,2]
+      return dash[0] >= 6 ? 'boundary-dashed' : 'line-dashed';
+    }
     return 'line-solid';
   }
   if (types === 'line,line') return 'line-cased';
-  if (types === 'circle') return 'point-circle';
+  if (types === 'circle') {
+    const circle = styles[0] as CircleStyle;
+    // address-point uses 3 px radius; point-circle uses 5 px
+    return (circle.paint['circle-radius'] as number) <= 3 ? 'address-point' : 'point-circle';
+  }
   if (types === 'symbol') {
     const sym = styles[0] as SymbolStyle;
     if (sym.layout && 'icon-image' in sym.layout) return 'point-icon';
