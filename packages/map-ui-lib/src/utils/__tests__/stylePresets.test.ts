@@ -90,21 +90,46 @@ describe('inferActivePresetId', () => {
     expect(inferActivePresetId([])).toBeNull();
   });
 
-  it('round-trips every preset', () => {
-    for (const p of STYLE_PRESETS) {
-      const styles = p.build('#4a90d9');
+  it('round-trips every non-recipe preset', () => {
+    const roundTrippable = STYLE_PRESETS.filter((p) => !p.id.startsWith('recipe-'));
+    for (const p of roundTrippable) {
+      const styles = p.build('#4a90d9', []);
       const inferred = inferActivePresetId(styles);
       expect(inferred, `${p.id} should be inferred from its own build()`).toBe(p.id);
     }
   });
 
-  it('distinguishes polygon-outline (opacity 0) from fill+outline (opacity > 0)', () => {
-    const outline: StyleConfig[] = [
+  it('recipe presets do not infer as a wrong generic preset id', () => {
+    // Provide a real field so label-aware recipes include their symbol layer,
+    // making their style signature distinguishable from the generic presets.
+    const testFields: AvailableProperty[] = [{ name: 'name', type: 'string', title: 'Name' }];
+    const recipes = STYLE_PRESETS.filter((p) => p.id.startsWith('recipe-'));
+    const genericIds = new Set(STYLE_PRESETS.filter((p) => !p.id.startsWith('recipe-')).map((p) => p.id));
+    for (const p of recipes) {
+      const styles = p.build('#4a90d9', testFields);
+      const inferred = inferActivePresetId(styles);
+      if (inferred !== null) {
+        expect(genericIds.has(inferred), `${p.id} should not infer as generic preset "${inferred}"`).toBe(false);
+      }
+    }
+  });
+
+  it('distinguishes polygon-outline (thick, opacity 0) from recipe-polygon-outlined (thin)', () => {
+    // Thick outline (≥ 1.5 px, opacity 0) → polygon-outline (generic preset)
+    const thickOutline: StyleConfig[] = [
       { type: 'fill', paint: { 'fill-color': '#abc', 'fill-opacity': 0 } },
       { type: 'line', paint: { 'line-color': '#abc', 'line-width': 1.5, 'line-opacity': 1 } },
     ];
-    expect(inferActivePresetId(outline)).toBe('polygon-outline');
+    expect(inferActivePresetId(thickOutline)).toBe('polygon-outline');
 
+    // Thin outline (≤ 1 px, opacity 0) → recipe-polygon-outlined
+    const thinOutline: StyleConfig[] = [
+      { type: 'fill', paint: { 'fill-color': '#abc', 'fill-opacity': 0 } },
+      { type: 'line', paint: { 'line-color': '#abc', 'line-width': 0.75, 'line-opacity': 1 } },
+    ];
+    expect(inferActivePresetId(thinOutline)).toBe('recipe-polygon-outlined');
+
+    // Fill + outline (opacity > 0) → fill-outline or recipe-filled
     const filled: StyleConfig[] = [
       { type: 'fill', paint: { 'fill-color': '#abc', 'fill-opacity': 0.5 } },
       { type: 'line', paint: { 'line-color': '#abc', 'line-width': 1.5, 'line-opacity': 1 } },

@@ -451,7 +451,9 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
             suitableStyleTypes={suitableStyleTypes}
             styles={value.styles}
             onChange={(styles) => update({ styles })}
+            availableProperties={availableProperties}
           />
+          <CollapsibleSection title="Advanced styling">
           {(() => {
             const styles = value.styles ?? [defaultFill];
             const moveStyle = (from: number, to: number) => {
@@ -608,6 +610,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
               );
             })()}
           </div>
+          </CollapsibleSection>
         </div>
       </CollapsibleSection>}
 
