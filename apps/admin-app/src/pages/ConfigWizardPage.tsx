@@ -913,12 +913,13 @@ export function ConfigWizardPage() {
               sections={['style', 'legend']}
               draftLayer={layerDraft}
               onDraftChange={(draft) => {
-                if (draft.sourceId?.startsWith('vm-')) {
-                  setLayerDraft({
+                if (draft && draft.sourceId?.startsWith('vm-')) {
+                  setLayerDraft(prev => ({
+                    ...(prev ?? draft),
                     ...draft,
-                    collection: draft.collection || draft.sourceId,
+                    collection: draft.collection || draft.sourceId || '',
                     dataMode: 'geojson' as const,
-                  });
+                  }));
                 } else {
                   setLayerDraft(draft);
                 }
