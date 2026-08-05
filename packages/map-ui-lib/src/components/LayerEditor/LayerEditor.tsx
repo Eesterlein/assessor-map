@@ -13,6 +13,7 @@ import { LegendEditor } from '../LegendEditor/LegendEditor';
 import { SearchFieldList } from '../SearchFieldEditor/SearchFieldList';
 import { PropertyDisplayEditor } from '../PropertyDisplayEditor/PropertyDisplayEditor';
 import { Cql2FilterEditor } from '../Cql2FilterEditor/Cql2FilterEditor';
+import { QuickFilterEditor } from './QuickFilterEditor';
 
 import { buildSourceOptionGroups } from './buildSourceOptionGroups';
 import type { SourceGroup } from './buildSourceOptionGroups';
@@ -419,7 +420,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
         </>
       )}
 
-      {showSection('style') && <CollapsibleSection title="Style">
+      {showSection('style') && <CollapsibleSection title="Style" defaultOpen>
         <div className="mapui:flex mapui:flex-col mapui:gap-4">
           {geometryMismatch && (
             <div className="mapui:flex mapui:flex-col mapui:gap-2 mapui:rounded mapui:border mapui:border-amber-300 mapui:bg-amber-50 mapui:p-2 mapui:text-xs mapui:text-amber-800">
@@ -450,7 +451,9 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
             suitableStyleTypes={suitableStyleTypes}
             styles={value.styles}
             onChange={(styles) => update({ styles })}
+            availableProperties={availableProperties}
           />
+          <CollapsibleSection title="Advanced styling">
           {(() => {
             const styles = value.styles ?? [defaultFill];
             const moveStyle = (from: number, to: number) => {
@@ -607,6 +610,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
               );
             })()}
           </div>
+          </CollapsibleSection>
         </div>
       </CollapsibleSection>}
 
@@ -647,18 +651,32 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
       )}
 
       {showSection('cql2Filter') && (
-        <CollapsibleSection title="CQL2 Filter" badge={value.cql2Filter?.rules.length ?? 0}>
-          <Cql2FilterEditor
-            value={value.cql2Filter as Cql2FilterConfig | undefined}
-            onChange={(cql2Filter) => update({ cql2Filter } as Partial<LayerConfig>)}
-            availableProperties={availableProperties}
-            geometryProperties={geometryProperties}
-            onFetchDistinctValues={
-              baseUrl && collection
-                ? (property, opts) => fetchDistinctValues(baseUrl, collection, property, { fetchAll: true, ...opts })
-                : undefined
-            }
-          />
+        <CollapsibleSection title="Filter" badge={value.cql2Filter?.rules.length ?? 0}>
+          <div className="mapui:flex mapui:flex-col mapui:gap-3">
+            <QuickFilterEditor
+              value={value.cql2Filter as Cql2FilterConfig | undefined}
+              onChange={(cql2Filter) => update({ cql2Filter } as Partial<LayerConfig>)}
+              availableProperties={availableProperties}
+              onFetchDistinctValues={
+                baseUrl && collection
+                  ? (property, opts) => fetchDistinctValues(baseUrl, collection, property, { fetchAll: true, ...opts })
+                  : undefined
+              }
+            />
+            <CollapsibleSection title="Advanced (CQL2)">
+              <Cql2FilterEditor
+                value={value.cql2Filter as Cql2FilterConfig | undefined}
+                onChange={(cql2Filter) => update({ cql2Filter } as Partial<LayerConfig>)}
+                availableProperties={availableProperties}
+                geometryProperties={geometryProperties}
+                onFetchDistinctValues={
+                  baseUrl && collection
+                    ? (property, opts) => fetchDistinctValues(baseUrl, collection, property, { fetchAll: true, ...opts })
+                    : undefined
+                }
+              />
+            </CollapsibleSection>
+          </div>
         </CollapsibleSection>
       )}
 

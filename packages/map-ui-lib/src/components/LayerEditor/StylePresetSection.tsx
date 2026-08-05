@@ -1,12 +1,13 @@
-import type { StyleConfig } from '../../types';
+import type { StyleConfig, AvailableProperty } from '../../types';
 import type { StylePresetGeometry } from '../../utils/stylePresets';
 import { StylePresetPicker } from '../StylePresetPicker/StylePresetPicker';
 
 export interface StylePresetSectionProps {
-  /** Style types suitable for this layer's collection (from queryables/feature inspection). */
   suitableStyleTypes: ('fill' | 'line' | 'circle' | 'symbol')[];
   styles: StyleConfig[] | undefined;
   onChange: (styles: StyleConfig[]) => void;
+  /** Passed to recipe presets so they can auto-wire label fields. */
+  availableProperties?: AvailableProperty[];
 }
 
 function deriveGeometries(suitable: ('fill' | 'line' | 'circle' | 'symbol')[]): StylePresetGeometry[] {
@@ -27,7 +28,7 @@ function hasPolygonApplicableFill(styles: StyleConfig[]): boolean {
   );
 }
 
-export function StylePresetSection({ suitableStyleTypes, styles, onChange }: StylePresetSectionProps) {
+export function StylePresetSection({ suitableStyleTypes, styles, onChange, availableProperties }: StylePresetSectionProps) {
   const geometries = deriveGeometries(suitableStyleTypes);
   if (geometries.length === 0) return null;
 
@@ -46,7 +47,7 @@ export function StylePresetSection({ suitableStyleTypes, styles, onChange }: Sty
 
   return (
     <>
-      <StylePresetPicker geometries={geometries} value={styles} onChange={onChange} />
+      <StylePresetPicker geometries={geometries} value={styles} onChange={onChange} availableProperties={availableProperties} />
       {showFillWarning && (
         <div className="mapui:flex mapui:items-center mapui:justify-between mapui:gap-2 mapui:rounded mapui:border mapui:border-red-300 mapui:bg-red-50 mapui:px-3 mapui:py-2 mapui:text-xs mapui:text-red-900">
           <span>

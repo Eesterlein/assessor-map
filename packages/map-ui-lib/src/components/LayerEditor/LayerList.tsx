@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { LayerConfig, OgcApiSource } from '../../types';
+import { slugify } from '../../utils/slugify';
 import { ConfirmDialog } from '../admin/ConfirmDialog';
 import { LayerEditor } from './LayerEditor';
 import type { LayerEditorSection } from './LayerEditor';
@@ -71,7 +72,10 @@ export function LayerList({ layers, onChange, availableSources, availableIcons, 
   }, [addingNew]);
 
   const handleSaveNew = () => {
-    onChange([...layers, newLayer]);
+    const layerToSave = newLayer.id
+      ? newLayer
+      : { ...newLayer, id: slugify(newLayer.collection) || slugify(newLayer.label) || newLayer.sourceId };
+    onChange([...layers, layerToSave]);
     if (isDraftControlled) onDraftChange!(null);
     else {
       setAddingNewState(false);
@@ -333,7 +337,7 @@ export function LayerList({ layers, onChange, availableSources, availableIcons, 
             <button
               type="button"
               onClick={handleSaveNew}
-              disabled={!newLayer.id || !newLayer.sourceId || !newLayer.collection}
+              disabled={!newLayer.sourceId || !newLayer.collection}
               className="mapui:cursor-pointer mapui:rounded-md mapui:bg-indigo-600 mapui:px-3 mapui:py-1.5 mapui:text-xs mapui:font-medium mapui:text-white hover:mapui:bg-indigo-700 disabled:mapui:cursor-not-allowed disabled:mapui:bg-slate-400 disabled:mapui:opacity-60"
             >
               Save Layer

@@ -47,6 +47,28 @@ function VectorTileLayer({
   );
 }
 
+// Inline component for virtual layer GeoJSON — fetches a direct GeoJSON URL (not OGC API).
+function DirectGeoJsonLayer({ layer, geojsonUrl, defaultLabelFont }: { layer: LayerConfig; geojsonUrl: string; defaultLabelFont?: string[] }) {
+  const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
+
+  useEffect(() => {
+    let stale = false;
+    fetch(geojsonUrl, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (!stale) setData(d as GeoJSON.FeatureCollection); })
+      .catch(err => console.error(`Virtual layer ${layer.id} load failed:`, err));
+    return () => { stale = true; };
+  }, [geojsonUrl, layer.id]);
+
+  if (!layer.styles?.length || !data) return null;
+
+  return (
+    <Source id={layer.id} key={layer.id} type="geojson" data={data}>
+      {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
+    </Source>
+  );
+}
+
 // Inline component for GeoJSON layers
 function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth, defaultLabelFont }: { layer: LayerConfig; sourceUrl: string; cql2Filter?: CQL2Expression | null; auth?: SourceAuth; defaultLabelFont?: string[] }) {
   const { features, error } = useOgcFeatures(sourceUrl, layer.collection, {
@@ -558,6 +580,9 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
         if (sourceInfo.isWmts) {
           console.warn(`Feature layer ${layer.id} references a WMTS source (${layer.sourceId}); WMTS is imagery-only`);
           return null;
+        }
+        if (sourceInfo.isGeoJsonDirect) {
+          return <DirectGeoJsonLayer key={`${layer.id}--${layer.styles?.length ?? 0}`} layer={layer} geojsonUrl={sourceInfo.url} defaultLabelFont={defaultLabelFont} />;
         }
         if (layer.dataMode === 'geojson') {
           return <GeoJsonLayer key={`${layer.id}--${layer.styles?.length ?? 0}`} layer={layer} sourceUrl={sourceInfo.url} cql2Filter={activeCql2Filters[layer.id]} auth={sourceInfo.auth} defaultLabelFont={defaultLabelFont} />;

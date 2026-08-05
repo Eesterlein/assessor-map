@@ -206,4 +206,21 @@ export async function initDb(): Promise<void> {
     EXCEPTION WHEN duplicate_object THEN NULL;
     END $$
   `);
+
+  // Virtual layers: CSV data joined with PostGIS geometries at query time.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS map_admin.virtual_maps (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      source_collection TEXT NOT NULL,
+      key_field TEXT NOT NULL,
+      csv_key_column TEXT NOT NULL,
+      csv_columns JSONB NOT NULL DEFAULT '[]',
+      csv_rows JSONB NOT NULL DEFAULT '[]',
+      row_count INTEGER,
+      created_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }

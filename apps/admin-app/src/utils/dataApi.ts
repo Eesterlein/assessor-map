@@ -176,6 +176,71 @@ export async function deleteRow(id: string, rowId: string | number): Promise<voi
   if (!res.ok) throw new DataApiError(res.status, await res.json().catch(() => ({})));
 }
 
+// ---------------------------------------------------------------------------
+// Virtual Maps — CSV data joined with PostGIS geometries (server/virtualMapsRoutes.ts)
+// ---------------------------------------------------------------------------
+
+export interface VirtualMap {
+  id: string;
+  name: string;
+  source_collection: string;
+  key_field: string;
+  csv_key_column: string;
+  csv_columns: string[];
+  csv_rows?: Record<string, unknown>[];
+  row_count: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateVirtualMapBody {
+  name: string;
+  source_collection: string;
+  key_field: string;
+  csv_key_column: string;
+  csv_columns: string[];
+  csv_rows: Record<string, unknown>[];
+}
+
+export async function listVirtualMaps(): Promise<VirtualMap[]> {
+  const res = await fetch('/api/virtual-maps', { credentials: 'include' });
+  return jsonOrThrow<VirtualMap[]>(res);
+}
+
+export async function getVirtualMap(id: string): Promise<VirtualMap> {
+  const res = await fetch(`/api/virtual-maps/${id}`, { credentials: 'include' });
+  return jsonOrThrow<VirtualMap>(res);
+}
+
+export async function createVirtualMap(body: CreateVirtualMapBody): Promise<VirtualMap> {
+  const res = await fetch('/api/virtual-maps', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return jsonOrThrow<VirtualMap>(res);
+}
+
+export async function updateVirtualMap(id: string, body: Partial<CreateVirtualMapBody> & { name?: string }): Promise<VirtualMap> {
+  const res = await fetch(`/api/virtual-maps/${id}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return jsonOrThrow<VirtualMap>(res);
+}
+
+export async function deleteVirtualMap(id: string): Promise<void> {
+  const res = await fetch(`/api/virtual-maps/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new DataApiError(res.status, await res.json().catch(() => ({})));
+}
+
 /** Build the multipart body for an upload — exported for unit testing. */
 export function buildUploadForm(file: File, opts: UploadOptions): FormData {
   const form = new FormData();
