@@ -456,11 +456,25 @@ export function inferActivePresetId(styles: StyleConfig[] | undefined | null): s
   if (!styles || styles.length === 0) return null;
   const types = styles.map((s) => s.type).join(',');
 
-  // Recipe presets that include symbol layers produce "fill,line,symbol" or
-  // "line,symbol" etc. — return null so they show as "Custom styles applied"
-  // rather than being misidentified as a generic preset.
+  // Recipe polygon presets with a label layer produce "fill,line,symbol".
+  if (types === 'fill,line,symbol') {
+    const fill = styles[0] as FillStyle;
+    const fillOpacity = fill.paint['fill-opacity'];
+    if (typeof fillOpacity === 'number' && fillOpacity === 0) return 'recipe-polygon-outlined';
+    if (typeof fillOpacity === 'number' && fillOpacity <= 0.4) return 'recipe-polygon-filled';
+    return null;
+  }
+
+  // recipe-line-labeled with a label layer produces "line,symbol".
+  if (types === 'line,symbol') {
+    const line = styles[0] as LineStyle;
+    const w = line.paint['line-width'] as number;
+    if (w >= 2.5) return 'recipe-line-labeled';
+    return null;
+  }
+
+  // Any other symbol+fill combo we don't recognise — show as custom.
   if (types.includes('symbol') && types.includes('fill')) return null;
-  if (types === 'line,symbol') return null;
 
   if (types === 'fill') {
     const fill = styles[0] as FillStyle;

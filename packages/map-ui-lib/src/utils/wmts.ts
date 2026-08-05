@@ -1,13 +1,13 @@
-import type { MapSource, OgcApiSource, WmtsSource, SourceAuth } from '../types';
+import type { MapSource, OgcApiSource, WmtsSource, GeoJsonMapSource, SourceAuth } from '../types';
 import { appendAuth, authHeaders } from './ogcApi';
 
 /**
  * Type guard: true if a `MapSource` is an OGC API source (no `sourceType` literal).
  * Use this before reading `.url` / `.tileMatrixSetId` / `.type` on a `MapSource`,
- * since the union also includes WMTS sources that have neither.
+ * since the union also includes WMTS and GeoJSON sources that differ structurally.
  */
 export function isOgcApiSource(source: MapSource): source is OgcApiSource {
-  return !('sourceType' in source && source.sourceType === 'wmts');
+  return !('sourceType' in source);
 }
 
 /**
@@ -17,6 +17,14 @@ export function isOgcApiSource(source: MapSource): source is OgcApiSource {
  */
 export function isWmtsSource(source: MapSource): source is WmtsSource {
   return 'sourceType' in source && source.sourceType === 'wmts';
+}
+
+/**
+ * Type guard: true if a `MapSource` is a virtual-layer GeoJSON source.
+ * These serve a pre-joined FeatureCollection from the admin API, bypassing tipg.
+ */
+export function isGeoJsonMapSource(source: MapSource): source is GeoJsonMapSource {
+  return 'sourceType' in source && source.sourceType === 'geojson';
 }
 
 /**

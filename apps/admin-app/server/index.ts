@@ -15,6 +15,7 @@ import {
 } from './proxyRewrite.js';
 import { registerDataRoutes } from './dataRoutes.js';
 import { registerRowRoutes } from './rowRoutes.js';
+import { registerVirtualMapsRoutes } from './virtualMapsRoutes.js';
 import {
   detectTileSourceType,
   appendAuth,
@@ -187,6 +188,7 @@ app.get('/api/health', async (_req, res) => {
 // --- My Data (GIS uploads) endpoints ---
 registerDataRoutes({ app, pool, requireAuth });
 registerRowRoutes({ app, pool, requireAuth });
+registerVirtualMapsRoutes({ app, pool, requireAuth });
 
 const NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const RESERVED_CONFIG_NAMES = new Set(['admin', 'api', 'ogc']);
