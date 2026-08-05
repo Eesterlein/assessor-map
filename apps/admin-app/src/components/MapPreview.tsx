@@ -262,6 +262,33 @@ function PreviewGeoJsonLayer({
   );
 }
 
+function PreviewDirectGeoJsonLayer({
+  layer,
+  sourceUrl,
+  defaultLabelFont,
+}: {
+  layer: LayerConfig;
+  sourceUrl: string;
+  defaultLabelFont?: string[];
+}) {
+  const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
+  useEffect(() => {
+    let stale = false;
+    fetch(sourceUrl, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (!stale) setData(d as GeoJSON.FeatureCollection); })
+      .catch(() => { /* silent — endpoint may not exist yet */ });
+    return () => { stale = true; };
+  }, [sourceUrl]);
+
+  if (!layer.styles?.length || !data) return null;
+  return (
+    <Source id={layer.id} key={layer.id} type="geojson" data={data}>
+      {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
+    </Source>
+  );
+}
+
 function PreviewRasterImageryLayer({
   layer,
   sourceUrl,
@@ -1250,6 +1277,17 @@ export function MapPreview({
           const sourceInfo = sourceUrlMap[layer.sourceId];
           if (!sourceInfo || !layer.styles?.length) return null;
           if (sourceInfo.isWmts) return null;
+
+          if (sourceInfo.isGeoJsonDirect) {
+            return (
+              <PreviewDirectGeoJsonLayer
+                key={layer.id}
+                layer={layer}
+                sourceUrl={sourceInfo.url}
+                defaultLabelFont={defaultLabelFont}
+              />
+            );
+          }
 
           if (layer.dataMode === 'geojson') {
             return (

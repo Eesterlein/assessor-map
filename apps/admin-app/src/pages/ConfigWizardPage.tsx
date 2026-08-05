@@ -914,9 +914,13 @@ export function ConfigWizardPage() {
               draftLayer={layerDraft}
               onDraftChange={(draft) => {
                 if (draft && draft.sourceId?.startsWith('vm-')) {
+                  const vmId = draft.sourceId.slice(3);
+                  const vm = virtualMaps.find(v => v.id === vmId);
                   setLayerDraft(prev => ({
                     ...(prev ?? draft),
                     ...draft,
+                    id: draft.id || slugify(vm?.name ?? '') || draft.sourceId,
+                    label: (draft.label && draft.label !== 'New Layer') ? draft.label : (vm?.name ?? draft.label),
                     collection: draft.collection || draft.sourceId || '',
                     dataMode: 'geojson' as const,
                   }));
