@@ -566,7 +566,10 @@ export function ConfigWizardPage() {
         (s): s is OgcApiSource => isOgcApiSource(s) && (s.type ?? 'features') === 'features',
       ),
       ...catalogSources.filter(cs => !existingIds.has(cs.id)),
-      ...virtualSourceStubs.filter(vs => !existingIds.has(vs.id)),
+      // Virtual stubs are always included — picking one adds a GeoJsonMapSource
+      // (not an OgcApiSource) to sources[], so existingIds would wrongly filter
+      // the stub out and make the selected layer's source "disappear".
+      ...virtualSourceStubs,
     ];
   }, [sources, savedFeatureSources, virtualSourceStubs]);
 
@@ -909,7 +912,17 @@ export function ConfigWizardPage() {
               availableIcons={availableIcons}
               sections={['style', 'legend']}
               draftLayer={layerDraft}
-              onDraftChange={setLayerDraft}
+              onDraftChange={(draft) => {
+                if (draft.sourceId?.startsWith('vm-')) {
+                  setLayerDraft({
+                    ...draft,
+                    collection: draft.collection || draft.sourceId,
+                    dataMode: 'geojson' as const,
+                  });
+                } else {
+                  setLayerDraft(draft);
+                }
+              }}
             />
           </div>
         )}
