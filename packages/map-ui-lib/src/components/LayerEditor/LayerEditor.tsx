@@ -420,7 +420,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
         </>
       )}
 
-      {showSection('style') && <CollapsibleSection title="Style">
+      {showSection('style') && <CollapsibleSection title="Style" defaultOpen>
         <div className="mapui:flex mapui:flex-col mapui:gap-4">
           {geometryMismatch && (
             <div className="mapui:flex mapui:flex-col mapui:gap-2 mapui:rounded mapui:border mapui:border-amber-300 mapui:bg-amber-50 mapui:p-2 mapui:text-xs mapui:text-amber-800">

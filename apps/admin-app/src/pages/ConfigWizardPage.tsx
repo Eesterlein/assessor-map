@@ -48,6 +48,7 @@ import { prettifyZodIssue } from '../utils/prettifyZodPath';
 import { lintMapConfig, type WizardLintIssue } from '../utils/lintMapConfig';
 import { TIPG_LOCAL_SOURCE_ID } from '../utils/detectLocalOgcApi';
 import { DEFAULT_VIEW, normalizeInitialView } from '../utils/viewConfig';
+import { listVirtualMaps, type VirtualMap } from '../utils/dataApi';
 
 const DEFAULT_GLOBAL_SEARCH: GlobalSearchConfig = {
   enabled: true,
@@ -287,6 +288,13 @@ export function ConfigWizardPage() {
       .catch(() => {});
   }, []);
 
+  // Virtual maps (CSV-based layers joined with PostGIS geometries)
+  const [virtualMaps, setVirtualMaps] = useState<VirtualMap[]>([]);
+
+  useEffect(() => {
+    listVirtualMaps().then(setVirtualMaps).catch(() => {});
+  }, []);
+
   // Imagery CollectionBrowser source selector state
   const [imageryBrowseSourceId, setImageryBrowseSourceId] = useState('');
 
@@ -299,7 +307,8 @@ export function ConfigWizardPage() {
   // Derived config object for save + preview
   const hasBranding = Object.keys(branding).length > 0;
 
-  const assembledConfig: MapConfig = { sources, layers, ...(imageryLayers.length > 0 ? { imageryLayers } : {}), basemaps, sprites: sprites.length > 0 ? sprites : undefined, ui: effectiveUIConfig, initialView, ...(hasBranding && { branding }), ...(globalSearch ? { globalSearch } : {}), ...(info ? { info } : {}) };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const assembledConfig: MapConfig = useMemo(() => ({ sources, layers, ...(imageryLayers.length > 0 ? { imageryLayers } : {}), basemaps, sprites: sprites.length > 0 ? sprites : undefined, ui: effectiveUIConfig, initialView, ...(hasBranding && { branding }), ...(globalSearch ? { globalSearch } : {}), ...(info ? { info } : {}) }), [sources, layers, imageryLayers, basemaps, sprites, effectiveUIConfig, initialView, hasBranding, branding, globalSearch, info]);
 
   const handlePreviewLayersChange = useCallback((next: LayerConfig[]) => {
     setLayers(next.filter(l => l.id !== PREVIEW_DRAFT_ID));
@@ -529,6 +538,18 @@ export function ConfigWizardPage() {
       isOgcApiSource(s) && s.type === 'imagery' && detectTileSourceType(s.url) === 'ogc-api',
   );
 
+  // Virtual map source stubs — appear in the source dropdown as fake OgcApiSources.
+  // When a user picks one, handleLayersChange auto-adds the real GeoJsonMapSource.
+  const virtualSourceStubs = useMemo<OgcApiSource[]>(() =>
+    virtualMaps.map(vm => ({
+      id: `vm-${vm.id}`,
+      url: `/api/virtual-maps/${vm.id}/geojson`,
+      label: vm.name,
+      type: 'features' as const,
+      tileMatrixSetId: 'WebMercatorQuad',
+    })),
+  [virtualMaps]);
+
   // All feature sources available for the layer dropdown: config-embedded + saved catalog (deduped)
   const allFeatureSourcesForDropdown = useMemo<OgcApiSource[]>(() => {
     const catalogSources: OgcApiSource[] = savedFeatureSources.map(saved => ({
@@ -545,22 +566,42 @@ export function ConfigWizardPage() {
         (s): s is OgcApiSource => isOgcApiSource(s) && (s.type ?? 'features') === 'features',
       ),
       ...catalogSources.filter(cs => !existingIds.has(cs.id)),
+      ...virtualSourceStubs.filter(vs => !existingIds.has(vs.id)),
     ];
-  }, [sources, savedFeatureSources]);
+  }, [sources, savedFeatureSources, virtualSourceStubs]);
 
   // Group the layer-editor source picker into "My Data" (the local OGC API that
   // serves uploaded datasets) vs "External Sources" (everything else). The local
   // source is identified by URL (same-origin `/ogc`) rather than a fixed id, so
   // it works whatever the source was named (e.g. `tipg-local`, `tipg-localhost`).
   const featureSourceGroups = useMemo<SourceGroup[]>(() => {
-    const myDataIds = allFeatureSourcesForDropdown.filter(isLocalOgcSource).map(s => s.id);
+    const virtualIds = virtualSourceStubs.map(s => s.id);
+    const virtualSet = new Set(virtualIds);
+    const nonVirtualSources = allFeatureSourcesForDropdown.filter(s => !virtualSet.has(s.id));
+    const myDataIds = nonVirtualSources.filter(isLocalOgcSource).map(s => s.id);
     const myDataSet = new Set(myDataIds);
-    const externalIds = allFeatureSourcesForDropdown.filter(s => !myDataSet.has(s.id)).map(s => s.id);
+    const externalIds = nonVirtualSources.filter(s => !myDataSet.has(s.id)).map(s => s.id);
     const groups: SourceGroup[] = [];
     if (myDataIds.length) groups.push({ id: 'my-data', label: 'My Data', sourceIds: myDataIds });
     if (externalIds.length) groups.push({ id: 'external', label: 'External Sources', sourceIds: externalIds });
+    if (virtualIds.length) groups.push({ id: 'virtual', label: 'Virtual Layers', sourceIds: virtualIds });
     return groups;
-  }, [allFeatureSourcesForDropdown]);
+  }, [allFeatureSourcesForDropdown, virtualSourceStubs]);
+
+  // Helper: when a sourceId is a virtual map stub, auto-add the GeoJsonMapSource to sources[].
+  const addVirtualSourceIfNeeded = useCallback((sids: Iterable<string>, prev: MapSource[]): MapSource[] => {
+    const currentIds = new Set(prev.map(s => s.id));
+    const toAdd: MapSource[] = [];
+    for (const sid of sids) {
+      if (!sid.startsWith('vm-') || currentIds.has(sid)) continue;
+      const vmId = sid.slice(3);
+      const vm = virtualMaps.find(v => v.id === vmId);
+      if (vm) {
+        toAdd.push({ id: sid, sourceType: 'geojson' as const, url: `/api/virtual-maps/${vmId}/geojson`, label: vm.name });
+      }
+    }
+    return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+  }, [virtualMaps]);
 
   // Wrapper around setLayers that keeps sources[] in sync:
   // auto-adds newly referenced feature sources from the catalog.
@@ -568,13 +609,24 @@ export function ConfigWizardPage() {
   // (and not present in the /api/sources catalog) to be silently dropped when a
   // layer's sourceId was edited, breaking MapConfig validation (sources: min(1)).
   const handleLayersChange = useCallback((nextLayers: LayerConfig[]) => {
-    setLayers(nextLayers);
+    // Auto-set collection + dataMode for virtual layer sources
+    const modifiedLayers = nextLayers.map(layer => {
+      if (layer.sourceId?.startsWith('vm-')) {
+        return {
+          ...layer,
+          collection: layer.collection || layer.sourceId,
+          dataMode: 'geojson' as const,
+        };
+      }
+      return layer;
+    });
+    setLayers(modifiedLayers);
     setSources(prev => {
-      const referencedIds = new Set(nextLayers.map(l => l.sourceId).filter(Boolean));
+      const referencedIds = new Set(modifiedLayers.map(l => l.sourceId).filter(Boolean));
       const currentIds = new Set(prev.map(s => s.id));
       const toAdd: OgcApiSource[] = [];
       for (const sid of referencedIds) {
-        if (currentIds.has(sid)) continue;
+        if (currentIds.has(sid) || sid.startsWith('vm-')) continue;
         const saved = savedFeatureSources.find(s => s.source_id === sid);
         if (saved) {
           toAdd.push({
@@ -587,9 +639,10 @@ export function ConfigWizardPage() {
           });
         }
       }
-      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+      const withOgc = toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+      return addVirtualSourceIfNeeded(referencedIds, withOgc);
     });
-  }, [savedFeatureSources]);
+  }, [savedFeatureSources, addVirtualSourceIfNeeded]);
 
   // Keep `sources` in sync with the in-progress draft layer too, so the MapPreview
   // can resolve a sourceUrl for it before the user clicks "Save Layer".
@@ -599,6 +652,9 @@ export function ConfigWizardPage() {
     if (!sid) return;
     setSources(prev => {
       if (prev.some(s => s.id === sid)) return prev;
+      if (sid.startsWith('vm-')) {
+        return addVirtualSourceIfNeeded([sid], prev);
+      }
       const saved = savedFeatureSources.find(s => s.source_id === sid);
       if (!saved) return prev;
       return [...prev, {
@@ -610,7 +666,7 @@ export function ConfigWizardPage() {
         auth: saved.auth ?? undefined,
       }];
     });
-  }, [layerDraft?.sourceId, savedFeatureSources]);
+  }, [layerDraft?.sourceId, savedFeatureSources, addVirtualSourceIfNeeded]);
 
   const isBasemapSelected = (saved: SavedSourceSummary) =>
     basemaps.some(b => b.url === saved.url);

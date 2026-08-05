@@ -100,9 +100,19 @@ export const WmtsSourceSchema = z.object({
   proxy: z.boolean().optional(),
 });
 
-// Union of all supported source types. WMTS has an explicit `sourceType`
-// literal; OGC API sources are the default (no discriminator field).
-export const MapSourceSchema = z.union([WmtsSourceSchema, OgcApiSourceSchema]);
+// --- GeoJSON Source (virtual layers — CSV data joined with PostGIS geometries) ---
+
+export const GeoJsonMapSourceSchema = z.object({
+  id: z.string().min(1),
+  sourceType: z.literal('geojson'),
+  url: z.string().min(1),
+  label: z.string().optional(),
+  proxy: z.boolean().optional(),
+});
+
+// Union of all supported source types. WMTS and GeoJSON have explicit
+// `sourceType` literals; OGC API sources are the default (no discriminator).
+export const MapSourceSchema = z.union([WmtsSourceSchema, GeoJsonMapSourceSchema, OgcApiSourceSchema]);
 
 // --- Paint Schemas (MapLibre GL JS conventions) ---
 

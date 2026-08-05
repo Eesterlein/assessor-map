@@ -5,6 +5,7 @@ import {
   SourceAuthSchema,
   OgcApiSourceSchema,
   WmtsSourceSchema,
+  GeoJsonMapSourceSchema,
   MapSourceSchema,
   FillPaintSchema,
   LinePaintSchema,
@@ -73,6 +74,7 @@ export type ViewConfig = z.infer<typeof ViewConfigSchema>;
 export type SourceAuth = z.infer<typeof SourceAuthSchema>;
 export type OgcApiSource = z.infer<typeof OgcApiSourceSchema>;
 export type WmtsSource = z.infer<typeof WmtsSourceSchema>;
+export type GeoJsonMapSource = z.infer<typeof GeoJsonMapSourceSchema>;
 export type MapSource = z.infer<typeof MapSourceSchema>;
 
 export type FillPaint = z.infer<typeof FillPaintSchema>;
@@ -199,6 +201,7 @@ export {
   SourceAuthSchema,
   OgcApiSourceSchema,
   WmtsSourceSchema,
+  GeoJsonMapSourceSchema,
   MapSourceSchema,
   FillPaintSchema,
   LinePaintSchema,
