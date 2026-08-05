@@ -9,7 +9,7 @@
  */
 import express from 'express';
 import type { Pool } from 'pg';
-import { isValidIdentifier } from './sanitizeTableName.js';
+import { isValidIdentifier, isValidColumnName } from './sanitizeTableName.js';
 
 export interface VirtualMapsRouteDeps {
   app: express.Express;
@@ -35,7 +35,9 @@ function parseCollection(collection: string): { schema: string; table: string } 
   const parts = collection.split('.');
   if (parts.length !== 2) return null;
   const [schema, table] = parts;
-  if (!isValidIdentifier(schema) || !isValidIdentifier(table)) return null;
+  // Use isValidColumnName (not isValidIdentifier) so known schema names like
+  // "uploads" and "map_admin" are accepted — they're double-quoted in SQL.
+  if (!isValidColumnName(schema) || !isValidColumnName(table)) return null;
   return { schema, table };
 }
 
@@ -83,7 +85,7 @@ export function registerVirtualMapsRoutes({ app, pool, requireAuth }: VirtualMap
       return;
     }
 
-    if (!isValidIdentifier(body.key_field)) {
+    if (!isValidColumnName(body.key_field)) {
       res.status(400).json({ error: 'key_field must be a safe identifier' });
       return;
     }
