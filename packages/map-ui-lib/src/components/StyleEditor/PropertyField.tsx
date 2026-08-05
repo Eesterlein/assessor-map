@@ -91,6 +91,45 @@ function TranslateWidget({
   );
 }
 
+const PADDING_SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const;
+
+function PaddingWidget({
+  value,
+  onChange,
+}: {
+  value: [number, number, number, number] | undefined;
+  onChange: (v: [number, number, number, number]) => void;
+}) {
+  const padding: [number, number, number, number] = [
+    value?.[0] ?? 0,
+    value?.[1] ?? 0,
+    value?.[2] ?? 0,
+    value?.[3] ?? 0,
+  ];
+  return (
+    <div className="mapui:flex mapui:items-center mapui:gap-2">
+      {PADDING_SIDES.map((side, i) => (
+        <input
+          key={side}
+          type="number"
+          min={0}
+          step={1}
+          value={padding[i]}
+          onChange={(e) => {
+            const next = [...padding] as [number, number, number, number];
+            next[i] = parseFloat(e.target.value) || 0;
+            onChange(next);
+          }}
+          className={`${inputClass} mapui:w-16`}
+          aria-label={side}
+          placeholder={side[0]}
+          title={side}
+        />
+      ))}
+    </div>
+  );
+}
+
 function OpacityWidget({
   value,
   onChange,
@@ -263,6 +302,14 @@ function WidgetContent({
       return (
         <TranslateWidget
           value={value as [number, number] | undefined}
+          onChange={onChange}
+        />
+      );
+
+    case 'padding':
+      return (
+        <PaddingWidget
+          value={value as [number, number, number, number] | undefined}
           onChange={onChange}
         />
       );

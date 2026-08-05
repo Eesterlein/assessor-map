@@ -35,7 +35,7 @@ import type { PropertyFilter } from '@techtraverse/map-ui-lib/utils';
 import { useExport } from '@techtraverse/map-ui-lib/hooks';
 import { DEFAULT_EXPORT_FORMATS, fromStructuredFilters, propertyFiltersToCql2, and, fetchFeatures, eq, exportConverters, zoomToFeature, applyZoomInstruction, featureCollectionFromGeometries, combineGeometries, baseCql2FilterFromLayer } from '@techtraverse/map-ui-lib/utils';
 import type { GeoJsonFeature } from '@techtraverse/map-ui-lib/utils';
-import type { UIConfig, SearchFilterValue, SearchFilterValues, OrderableControlKey, InfoPosition, ControlCorner } from '@techtraverse/map-ui-lib/types';
+import type { UIConfig, SearchFilterValue, SearchFilterValues, OrderableControlKey, InfoPosition, ControlCorner, PropertyDisplayType } from '@techtraverse/map-ui-lib/types';
 import {
   groupControlsByCorner,
   resolveControlCorner,
@@ -78,6 +78,8 @@ interface MapOverlayProps {
     title?: string;
     fields?: string[];
     labels?: Record<string, string>;
+    types?: Record<string, PropertyDisplayType>;
+    linkText?: Record<string, string>;
   }[];
   onCloseFeatureDetail: (index: number) => void;
   hoveredFeatures: {
@@ -85,6 +87,8 @@ interface MapOverlayProps {
     title?: string;
     fields?: string[];
     labels?: Record<string, string>;
+    types?: Record<string, PropertyDisplayType>;
+    linkText?: Record<string, string>;
   }[];
   hoveredPoint: { x: number; y: number } | null;
   measureMode: MeasureMode | null;
@@ -393,6 +397,8 @@ export function MapOverlay({
               title={feature.title ?? 'Feature Properties'}
               fields={feature.fields}
               labels={feature.labels}
+              types={feature.types}
+              linkText={feature.linkText}
               variant="panel"
             />
           ))}

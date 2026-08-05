@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { BasemapConfig } from '../../types';
+import { resolveDisplayLabel } from '../../utils/labelUtils';
 import { ConfirmDialog } from '../admin/ConfirmDialog';
 import { BasemapEditor } from './BasemapEditor';
 
@@ -8,7 +9,7 @@ export interface BasemapListProps {
   onChange: (basemaps: BasemapConfig[]) => void;
 }
 
-const defaultBasemap = (): BasemapConfig => ({ id: '', label: '', url: '' });
+const defaultBasemap = (): BasemapConfig => ({ id: '', label: 'New Basemap', url: '' });
 
 export function BasemapList({ basemaps, onChange }: BasemapListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function BasemapList({ basemaps, onChange }: BasemapListProps) {
               )}
               <div className="mapui:flex-1 mapui:overflow-hidden">
                 <span className="mapui:block mapui:text-sm mapui:font-medium mapui:text-slate-800">
-                  {basemap.label || basemap.id}
+                  {resolveDisplayLabel(basemap)}
                 </span>
                 <span className="mapui:block mapui:truncate mapui:font-mono mapui:text-xs mapui:text-slate-500">
                   {basemap.url}

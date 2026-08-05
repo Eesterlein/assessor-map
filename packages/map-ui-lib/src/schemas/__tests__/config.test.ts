@@ -9,6 +9,11 @@ import {
   MapConfigSchema,
   ViewConfigSchema,
   WmtsSourceSchema,
+  OgcApiSourceSchema,
+  FillStyleSchema,
+  LineStyleSchema,
+  CircleStyleSchema,
+  SymbolStyleSchema,
 } from '../config';
 
 const baseMapConfig = {
@@ -100,6 +105,21 @@ describe('LayerConfigSchema backward-compat preprocess', () => {
     expect(Array.isArray((result.styles![2] as any).layout['icon-image'])).toBe(true);
   });
 
+  it('accepts expression for text-field (data-driven labels)', () => {
+    const input = {
+      ...base,
+      styles: [
+        {
+          type: 'symbol',
+          paint: { 'text-color': '#000' },
+          layout: { 'text-field': ['get', 'name'], 'text-size': 12 },
+        },
+      ],
+    };
+    const result = LayerConfigSchema.parse(input);
+    expect(Array.isArray((result.styles![0] as any).layout['text-field'])).toBe(true);
+  });
+
   it('still accepts plain number/string values for line-width, circle-radius, icon-image (back-compat)', () => {
     const input = {
       ...base,
@@ -128,6 +148,83 @@ describe('LayerConfigSchema backward-compat preprocess', () => {
     };
     const result = LayerConfigSchema.parse(input);
     expect(result.styles![0].geometryFilter).toEqual(['Polygon', 'MultiPolygon']);
+  });
+});
+
+describe('LayerConfigSchema propertyDisplay', () => {
+  const base = {
+    id: 'test-layer',
+    sourceId: 'source-1',
+    collection: 'my-collection',
+    label: 'Test Layer',
+    dataMode: 'vector-tiles' as const,
+  };
+
+  it('parses legacy entries without order (backward compat)', () => {
+    const result = LayerConfigSchema.parse({
+      ...base,
+      propertyDisplay: {
+        owner: { label: 'Owner', visible: true },
+        internal_id: { visible: false },
+        acres: {},
+      },
+    });
+    expect(result.propertyDisplay).toEqual({
+      owner: { label: 'Owner', visible: true },
+      internal_id: { visible: false },
+      acres: { visible: true },
+    });
+    expect(result.propertyDisplay!.owner.order).toBeUndefined();
+  });
+
+  it('parses entries with explicit order', () => {
+    const result = LayerConfigSchema.parse({
+      ...base,
+      propertyDisplay: {
+        owner: { label: 'Owner', order: 0 },
+        acres: { order: 1 },
+      },
+    });
+    expect(result.propertyDisplay!.owner.order).toBe(0);
+    expect(result.propertyDisplay!.acres.order).toBe(1);
+  });
+
+  it('rejects negative and non-integer order values', () => {
+    for (const order of [-1, 1.5]) {
+      const result = LayerConfigSchema.safeParse({
+        ...base,
+        propertyDisplay: { owner: { order } },
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('parses type: link with linkText', () => {
+    const result = LayerConfigSchema.parse({
+      ...base,
+      propertyDisplay: {
+        assessorlink: { label: 'Assessor Record', type: 'link', linkText: 'View Assessor Record' },
+      },
+    });
+    expect(result.propertyDisplay!.assessorlink.type).toBe('link');
+    expect(result.propertyDisplay!.assessorlink.linkText).toBe('View Assessor Record');
+  });
+
+  it('leaves type unset when omitted (semantic default: text)', () => {
+    const result = LayerConfigSchema.parse({
+      ...base,
+      propertyDisplay: { owner: { label: 'Owner' } },
+    });
+    expect(result.propertyDisplay!.owner.type).toBeUndefined();
+    expect(result.propertyDisplay!.owner.linkText).toBeUndefined();
+  });
+
+  it('rejects invalid type values', () => {
+    const result = LayerConfigSchema.safeParse({
+      ...base,
+      propertyDisplay: { owner: { type: 'foo' } },
+    });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -384,6 +481,48 @@ describe('UIConfigSchema phase-2 additions', () => {
   });
 });
 
+describe('UIConfigSchema defaultLabelFont', () => {
+  it('defaults to ["Open Sans Bold"] when omitted', () => {
+    const result = MapConfigSchema.parse(baseMapConfig);
+    expect(result.ui.defaultLabelFont).toEqual(['Open Sans Bold']);
+  });
+
+  it('accepts an explicit font stack and returns it unchanged', () => {
+    const result = MapConfigSchema.parse({
+      ...baseMapConfig,
+      ui: { defaultLabelFont: ['Noto Sans Bold'] },
+    });
+    expect(result.ui.defaultLabelFont).toEqual(['Noto Sans Bold']);
+  });
+
+  it('rejects an empty array', () => {
+    expect(() =>
+      MapConfigSchema.parse({
+        ...baseMapConfig,
+        ui: { defaultLabelFont: [] },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects empty-string font names', () => {
+    expect(() =>
+      MapConfigSchema.parse({
+        ...baseMapConfig,
+        ui: { defaultLabelFont: [''] },
+      }),
+    ).toThrow();
+  });
+
+  it('back-compat: an old config with a ui block but no defaultLabelFont still parses', () => {
+    const result = MapConfigSchema.parse({
+      ...baseMapConfig,
+      ui: { showLegend: false, coordinateFormat: 'dms' },
+    });
+    expect(result.ui.defaultLabelFont).toEqual(['Open Sans Bold']);
+    expect(result.ui.coordinateFormat).toBe('dms');
+  });
+});
+
 describe('UIConfigSchema controlIcons / controlPositions partial records', () => {
   it('accepts a controlIcons override for a single control', () => {
     const result = MapConfigSchema.parse({
@@ -535,6 +674,30 @@ describe('WmtsSourceSchema', () => {
     const invalid = { ...validWmts, capabilitiesUrl: 'not-a-url' };
     expect(() => WmtsSourceSchema.parse(invalid)).toThrow();
   });
+
+  it('parses source-level maxZoom and leaves it undefined when absent', () => {
+    expect(WmtsSourceSchema.parse({ ...validWmts, maxZoom: 19 }).maxZoom).toBe(19);
+    expect(WmtsSourceSchema.parse(validWmts).maxZoom).toBeUndefined();
+  });
+
+  it('rejects out-of-range maxZoom', () => {
+    expect(() => WmtsSourceSchema.parse({ ...validWmts, maxZoom: -1 })).toThrow();
+    expect(() => WmtsSourceSchema.parse({ ...validWmts, maxZoom: 25 })).toThrow();
+  });
+});
+
+describe('OgcApiSourceSchema maxZoom', () => {
+  const validOgc = { id: 'arcgis-topo', url: 'https://example.com/rest/services/Topo/MapServer' };
+
+  it('parses source-level maxZoom and leaves it undefined when absent (backward compat)', () => {
+    expect(OgcApiSourceSchema.parse({ ...validOgc, maxZoom: 15 }).maxZoom).toBe(15);
+    expect(OgcApiSourceSchema.parse(validOgc).maxZoom).toBeUndefined();
+  });
+
+  it('rejects out-of-range maxZoom', () => {
+    expect(() => OgcApiSourceSchema.parse({ ...validOgc, maxZoom: -1 })).toThrow();
+    expect(() => OgcApiSourceSchema.parse({ ...validOgc, maxZoom: 25 })).toThrow();
+  });
 });
 
 describe('MapConfigSchema with WMTS sources', () => {
@@ -621,5 +784,100 @@ describe('MapConfigSchema with WMTS sources', () => {
       imageryLayers: [{ id: 'no-collection', sourceId: 'ogc', label: 'Bad' }],
     };
     expect(() => MapConfigSchema.parse(config)).toThrow(/collection/i);
+  });
+});
+
+describe('Per-style minZoom/maxZoom', () => {
+  const stylesByType = {
+    fill: { type: 'fill', paint: { 'fill-color': '#f00', 'fill-opacity': 0.5 } },
+    line: { type: 'line', paint: { 'line-color': '#00f', 'line-width': 2 } },
+    circle: { type: 'circle', paint: { 'circle-color': '#0f0', 'circle-radius': 4 } },
+    symbol: { type: 'symbol', paint: { 'text-color': '#333' }, layout: { 'text-field': '{name}' } },
+  } as const;
+  const schemas = {
+    fill: FillStyleSchema,
+    line: LineStyleSchema,
+    circle: CircleStyleSchema,
+    symbol: SymbolStyleSchema,
+  } as const;
+
+  for (const type of ['fill', 'line', 'circle', 'symbol'] as const) {
+    const schema = schemas[type];
+    const base = stylesByType[type];
+
+    it(`${type}: defaults to undefined when absent (backward compat)`, () => {
+      const result = schema.parse(base);
+      expect(result.minZoom).toBeUndefined();
+      expect(result.maxZoom).toBeUndefined();
+    });
+
+    it(`${type}: parses minZoom/maxZoom`, () => {
+      const result = schema.parse({ ...base, minZoom: 3, maxZoom: 15 });
+      expect(result.minZoom).toBe(3);
+      expect(result.maxZoom).toBe(15);
+    });
+
+    it(`${type}: rejects out-of-range values`, () => {
+      expect(() => schema.parse({ ...base, minZoom: -1 })).toThrow();
+      expect(() => schema.parse({ ...base, maxZoom: 25 })).toThrow();
+    });
+  }
+
+  it('MapConfigSchema rejects a style with minZoom > maxZoom, with a precise path', () => {
+    const config = {
+      ...baseMapConfig,
+      layers: [
+        {
+          ...baseMapConfig.layers[0],
+          styles: [
+            stylesByType.line,
+            { ...stylesByType.line, minZoom: 15, maxZoom: 5 },
+          ],
+        },
+      ],
+    };
+    const result = MapConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.message.includes('minZoom'));
+      expect(issue).toBeDefined();
+      expect(issue!.path).toEqual(['layers', 0, 'styles', 1, 'minZoom']);
+    }
+  });
+
+  it('allows style minZoom to equal maxZoom', () => {
+    const config = {
+      ...baseMapConfig,
+      layers: [
+        { ...baseMapConfig.layers[0], styles: [{ ...stylesByType.fill, minZoom: 10, maxZoom: 10 }] },
+      ],
+    };
+    expect(MapConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it('round-trips a layer stacking styles with no, partial, and full bounds', () => {
+    // The "mike3" case: 4WD roads / local roads / highways as one layer.
+    const config = {
+      ...baseMapConfig,
+      layers: [
+        {
+          ...baseMapConfig.layers[0],
+          minZoom: 4,
+          styles: [
+            { ...stylesByType.line, maxZoom: 11 }, // 4WD roads
+            { ...stylesByType.line, minZoom: 11, maxZoom: 15 }, // local roads
+            stylesByType.line, // highways — no override
+          ],
+        },
+      ],
+    };
+    const parsed = MapConfigSchema.parse(config);
+    const styles = parsed.layers[0].styles!;
+    expect(styles[0].minZoom).toBeUndefined();
+    expect(styles[0].maxZoom).toBe(11);
+    expect(styles[1].minZoom).toBe(11);
+    expect(styles[1].maxZoom).toBe(15);
+    expect(styles[2].minZoom).toBeUndefined();
+    expect(styles[2].maxZoom).toBeUndefined();
   });
 });

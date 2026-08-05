@@ -61,6 +61,8 @@ const ROOT_LABELS: Record<string, SegmentLabels> = {
           type: 'Style type',
           paint: 'Paint',
           layout: 'Layout',
+          minZoom: 'Min zoom',
+          maxZoom: 'Max zoom',
         },
       },
       legend: {

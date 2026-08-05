@@ -50,7 +50,10 @@ storybook-static
 # Local config / infra (not committed)
 /config.json
 /TODO.md
-/scripts/
+/scripts/*
+# ...except the checked-in shield sprite build pipeline (source of truth
+# for apps/*/public/sprites/shields/ — see `pnpm build:shields`)
+!/scripts/shield-sprite/
 
 # Local-only investigation artifacts (raw DB dumps, logs, screenshots
 # captured during feedback triage — may contain credentials)

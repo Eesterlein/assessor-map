@@ -39,6 +39,7 @@ function makeConfig(overrides: Partial<MapConfig> = {}): MapConfig {
       controlLayout: 'individual',
       sideMenuToggleCorner: 'top-right',
       coordinateFormat: 'decimal-degrees',
+      defaultLabelFont: ['Open Sans Bold'],
     },
     initialView: { latitude: 40, longitude: -100, zoom: 5, pitch: 0, bearing: 0 },
     ...overrides,
@@ -59,6 +60,12 @@ describe('ConfigReview', () => {
     expect(html).toContain('Layer panel');
     expect(html).toContain('Legend');
     expect(html).not.toContain('Measure tool');
+  });
+
+  it('renders the default label font row', () => {
+    const html = renderToStaticMarkup(<ConfigReview config={makeConfig()} name="X" />);
+    expect(html).toContain('Label font');
+    expect(html).toContain('Open Sans Bold');
   });
 
   it('renders a plain-color style swatch for a layer', () => {

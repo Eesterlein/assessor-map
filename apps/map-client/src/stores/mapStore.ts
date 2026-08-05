@@ -207,6 +207,7 @@ export const useMapStore = create<MapState>((set) => ({
     coordinateFormat: 'decimal-degrees',
     controlLayout: 'individual',
     sideMenuToggleCorner: 'top-right',
+    defaultLabelFont: ['Open Sans Bold'],
   },
   branding: undefined,
   info: undefined,

@@ -165,19 +165,26 @@ export function buildDefaultStylesForGeometryTypes(geomTypes: string[]): StyleCo
  *
  * - `'apply'`: there were no styles, OR the current styles are exactly the ones
  *   we previously auto-applied (still untouched defaults) — safe to replace.
- * - `'keep'`: the current styles already equal the newly-detected defaults —
+ * - `'keep'`: the current styles already equal the newly-detected defaults, OR
+ *   every current style type is still suitable for the detected geometry —
  *   nothing to do.
- * - `'warn'`: the user customized the styles, so replacing would clobber their
- *   work — surface a warning and let them choose.
+ * - `'warn'`: the user customized the styles AND at least one style type cannot
+ *   render the detected geometry (e.g. a fill on points), so replacing would
+ *   clobber their work — surface a warning and let them choose.
  *
  * `lastAutoApplied` is the styles array we last auto-applied (or null if we
  * never have). Comparison is structural (JSON), which is sufficient for these
  * plain config objects.
+ *
+ * `suitableTypes` is the set of style types compatible with the detected
+ * geometry. When provided, customized styles whose types are all suitable are
+ * kept silently — a customization alone is not a geometry mismatch.
  */
 export function resolveStyleReapplyAction(
   current: StyleConfig[] | undefined,
   detected: StyleConfig[],
   lastAutoApplied: StyleConfig[] | null,
+  suitableTypes?: StyleConfig['type'][],
 ): 'apply' | 'keep' | 'warn' {
   if (detected.length === 0) return 'keep';
   if (!current || current.length === 0) return 'apply';
@@ -185,6 +192,9 @@ export function resolveStyleReapplyAction(
   if (currentJson === JSON.stringify(detected)) return 'keep';
   if (lastAutoApplied !== null && currentJson === JSON.stringify(lastAutoApplied)) {
     return 'apply';
+  }
+  if (suitableTypes && current.every((s) => suitableTypes.includes(s.type))) {
+    return 'keep';
   }
   return 'warn';
 }

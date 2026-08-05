@@ -12,9 +12,12 @@
     "build:app": "pnpm --filter map-client build",
     "test": "pnpm --filter @techtraverse/map-ui-lib test",
     "test:coverage": "pnpm --filter @techtraverse/map-ui-lib test:coverage",
-    "verify": "pnpm build && pnpm test"
+    "verify": "pnpm build && pnpm test",
+    "build:shields": "node scripts/shield-sprite/build.mjs"
   },
   "devDependencies": {
+    "potpack": "^2.1.0",
+    "sharp": "^0.35.3",
     "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@10.29.1",

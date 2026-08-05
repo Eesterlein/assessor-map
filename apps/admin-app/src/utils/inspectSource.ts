@@ -9,7 +9,13 @@ import type {
   CollectionMeta,
   QueryableMeta,
 } from '../../server/inspect.js';
-import { appendAuth, authHeaders, stripTrailingSlash, detectTileSourceType } from '@techtraverse/map-ui-lib/utils';
+import {
+  appendAuth,
+  authHeaders,
+  stripTrailingSlash,
+  detectTileSourceType,
+  fetchArcgisServiceInfo,
+} from '@techtraverse/map-ui-lib/utils';
 import type { SourceAuth } from '@techtraverse/map-ui-lib/types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -361,6 +367,35 @@ async function inspectTileJsonSourceClientSide(
   }
 }
 
+async function inspectArcgisSourceClientSide(
+  url: string,
+  auth?: SourceAuth,
+): Promise<InspectionResult> {
+  try {
+    const meta = await fetchArcgisServiceInfo(
+      normalizeUrl(url),
+      auth,
+      AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    );
+    return {
+      landing: { title: meta.name, description: meta.attribution },
+      conformance: null,
+      collections: [],
+      inspectedAt: new Date().toISOString(),
+      errors: [],
+      arcgis: meta,
+    };
+  } catch (err) {
+    return {
+      landing: null,
+      conformance: null,
+      collections: [],
+      inspectedAt: new Date().toISOString(),
+      errors: [`ArcGIS inspection failed: ${errorMessage(err)}`],
+    };
+  }
+}
+
 export async function inspectSourceClientSide(
   url: string,
   auth?: SourceAuth,
@@ -369,6 +404,10 @@ export async function inspectSourceClientSide(
 
   if (sourceType === 'tilejson') {
     return inspectTileJsonSourceClientSide(url, auth);
+  }
+
+  if (sourceType === 'arcgis') {
+    return inspectArcgisSourceClientSide(url, auth);
   }
 
   if (sourceType === 'xyz') {

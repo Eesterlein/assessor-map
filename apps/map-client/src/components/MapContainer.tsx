@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Map, Source, Layer, Marker, AttributionControl, type MapRef } from 'react-map-gl/maplibre';
 import { useOgcFeatures, useHeaderAuthTransformRequest, useVectorSourceLayer } from '@techtraverse/map-ui-lib/hooks';
-import { getCql2FilteredVectorTileUrl, resolveStyleWithSprites, getVectorTileSourceKey, getSubLayerId, getDashSubLayerId, getStyleSubLayerIds, getLayerSourceKey, getLayerSubLayerIds, buildGeometryFilter, getImageryTileUrl, expandDashByCategory, DASH_PER_CASE_PAINT_PROPS, buildSourceUrlMap } from '@techtraverse/map-ui-lib/utils';
+import { getCql2FilteredVectorTileUrl, resolveStyleWithSprites, withDefaultShieldSprite, getVectorTileSourceKey, getSubLayerId, getDashSubLayerId, getStyleSubLayerIds, getLayerSourceKey, getLayerSubLayerIds, buildGeometryFilter, getImageryTileUrl, getRasterImagerySourceKey, expandDashByCategory, DASH_PER_CASE_PAINT_PROPS, buildSourceUrlMap, resolveStyleZoomBounds, applyDefaultLabelFont } from '@techtraverse/map-ui-lib/utils';
 import type { CQL2Expression, SourceAuth } from '@techtraverse/map-ui-lib/utils';
 import type { LayerConfig, ImageryLayerConfig } from '@techtraverse/map-ui-lib/types';
 import type { MeasureMode, SelectionMode } from '@techtraverse/map-ui-lib';
@@ -14,12 +14,14 @@ function VectorTileLayer({
   tileMatrixSetId,
   cql2Filter,
   auth,
+  defaultLabelFont,
 }: {
   layer: LayerConfig;
   sourceUrl: string;
   tileMatrixSetId?: string;
   cql2Filter?: CQL2Expression | null;
   auth?: SourceAuth;
+  defaultLabelFont?: string[];
 }) {
   const tileUrl = getCql2FilteredVectorTileUrl(sourceUrl, layer.collection, cql2Filter, tileMatrixSetId, auth);
   // Resolve the MVT `source-layer` from the collection's TileJSON. Folded into
@@ -40,13 +42,13 @@ function VectorTileLayer({
 
   return (
     <Source id={sourceKey} key={remountKey} type="vector" tiles={[tileUrl]}>
-      {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, sourceKey, layer, sourceLayer))}
+      {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, sourceKey, layer, sourceLayer, defaultLabelFont))}
     </Source>
   );
 }
 
 // Inline component for GeoJSON layers
-function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth }: { layer: LayerConfig; sourceUrl: string; cql2Filter?: CQL2Expression | null; auth?: SourceAuth }) {
+function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth, defaultLabelFont }: { layer: LayerConfig; sourceUrl: string; cql2Filter?: CQL2Expression | null; auth?: SourceAuth; defaultLabelFont?: string[] }) {
   const { features, error } = useOgcFeatures(sourceUrl, layer.collection, {
     limit: 10000,
     cql2Filter: cql2Filter ?? undefined,
@@ -71,7 +73,7 @@ function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth }: { layer: LayerConf
 
   return (
     <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection}>
-      {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, layer.id, layer))}
+      {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
     </Source>
   );
 }
@@ -82,20 +84,26 @@ function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth }: { layer: LayerConf
  * Layers (one per case + a default-case) so each can carry a static
  * `line-dasharray` — MapLibre data-constants this paint property, so a
  * `["match", ...]` expression isn't an option.
+ *
+ * Exported for tests only — not part of the component API.
  */
-function renderStyleLayers(
+export function renderStyleLayers(
   style: LayerConfig['styles'] extends (infer S)[] | undefined ? S : never,
   styleIndex: number,
   baseId: string,
   layer: LayerConfig,
   sourceLayer?: string,
+  defaultLabelFont?: string[],
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const commonProps: Record<string, any> = {
     type: style.type,
-    layout: { ...(style.layout ?? {}), visibility: layer.visible ? 'visible' : 'none' },
-    ...(layer.minZoom != null ? { minzoom: layer.minZoom } : {}),
-    ...(layer.maxZoom != null ? { maxzoom: layer.maxZoom } : {}),
+    layout: applyDefaultLabelFont(
+      { ...(style.layout ?? {}), visibility: layer.visible ? 'visible' : 'none' },
+      style,
+      defaultLabelFont,
+    ),
+    ...resolveStyleZoomBounds(layer, style),
     ...(sourceLayer ? { 'source-layer': sourceLayer } : {}),
   };
   const baseFilter = style.geometryFilter ? buildGeometryFilter(style.geometryFilter) : undefined;
@@ -143,6 +151,7 @@ function RasterImageryLayer({
   tileMatrixSetId,
   auth,
   sourceTileUrlTemplate,
+  sourceMaxZoom,
 }: {
   layer: ImageryLayerConfig;
   sourceUrl: string;
@@ -150,18 +159,23 @@ function RasterImageryLayer({
   auth?: SourceAuth;
   /** Source-level tile URL template (e.g. from a WMTS source). Takes precedence over layer.tileUrlTemplate. */
   sourceTileUrlTemplate?: string;
+  /** Deepest native zoom of the source; MapLibre overzooms past it instead of fetching blank tiles. */
+  sourceMaxZoom?: number;
 }) {
   const template = sourceTileUrlTemplate ?? layer.tileUrlTemplate;
   const tileUrl = getImageryTileUrl(sourceUrl, layer.collection, tileMatrixSetId, template, auth);
+  // Source maxzoom caps tile *requests* (overzoom); the Layer keeps its own
+  // maxzoom, which *hides* rendering — two different behaviors, don't merge.
+  const requestMaxzoom = sourceMaxZoom ?? layer.maxZoom;
   return (
     <Source
       id={`imagery-${layer.id}`}
-      key={`imagery-${layer.id}`}
+      key={getRasterImagerySourceKey(`imagery-${layer.id}`, sourceMaxZoom)}
       type="raster"
       tiles={[tileUrl]}
       tileSize={layer.tileSize ?? 256}
       {...(layer.minZoom != null ? { minzoom: layer.minZoom } : {})}
-      {...(layer.maxZoom != null ? { maxzoom: layer.maxZoom } : {})}
+      {...(requestMaxzoom != null ? { maxzoom: requestMaxzoom } : {})}
     >
       <Layer
         id={`imagery-${layer.id}`}
@@ -220,6 +234,7 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
   const basemaps = useMapStore((s) => s.basemaps);
   const activeBasemapId = useMapStore((s) => s.activeBasemapId);
   const sprites = useMapStore((s) => s.sprites);
+  const defaultLabelFont = useMapStore((s) => s.uiConfig.defaultLabelFont);
   // Per-layer effective filter = saved layer.cql2Filter (base) AND
   // SearchPanel-derived filter (active). Use this everywhere instead of
   // raw activeCql2Filters so saved base filters reach the wire on first
@@ -317,11 +332,14 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
 
   useEffect(() => {
     if (!mapStyleUrl) return;
-    if (!sprites.length) {
-      setResolvedStyle(mapStyleUrl);
-      return;
-    }
-    resolveStyleWithSprites(mapStyleUrl, sprites)
+    // Always merge in the bundled default shield sprite (id "shields") so
+    // `icon-image: "shields:*"` works out of the box; a config-level sprite
+    // with the same id overrides it.
+    const allSprites = withDefaultShieldSprite(
+      sprites,
+      `${window.location.origin}${import.meta.env.BASE_URL}`,
+    );
+    resolveStyleWithSprites(mapStyleUrl, allSprites)
       .then(setResolvedStyle)
       .catch((err) => {
         console.warn('Failed to resolve sprite style, using basemap URL:', err);
@@ -525,6 +543,7 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
             tileMatrixSetId={sourceInfo?.tileMatrixSetId}
             auth={sourceInfo?.auth}
             sourceTileUrlTemplate={sourceInfo?.tileUrlTemplate}
+            sourceMaxZoom={sourceInfo?.maxZoom}
           />
         );
       })}
@@ -541,7 +560,7 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
           return null;
         }
         if (layer.dataMode === 'geojson') {
-          return <GeoJsonLayer key={`${layer.id}--${layer.styles?.length ?? 0}`} layer={layer} sourceUrl={sourceInfo.url} cql2Filter={activeCql2Filters[layer.id]} auth={sourceInfo.auth} />;
+          return <GeoJsonLayer key={`${layer.id}--${layer.styles?.length ?? 0}`} layer={layer} sourceUrl={sourceInfo.url} cql2Filter={activeCql2Filters[layer.id]} auth={sourceInfo.auth} defaultLabelFont={defaultLabelFont} />;
         }
         return (
           <VectorTileLayer
@@ -551,6 +570,7 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
             tileMatrixSetId={sourceInfo.tileMatrixSetId}
             cql2Filter={activeCql2Filters[layer.id]}
             auth={sourceInfo.auth}
+            defaultLabelFont={defaultLabelFont}
           />
         );
       })}

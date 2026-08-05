@@ -39,8 +39,45 @@ Describes an OGC API Features/Tiles server.
 | `label` | `string` | No | Human-readable name |
 | `tileMatrixSetId` | `string` | No | Tile matrix set; default `"WebMercatorQuad"` |
 | `type` | `"features" \| "imagery"` | No | Source type; default `"features"` |
+| `maxZoom` | `number` (0–24) | No | Deepest zoom with native tiles (e.g. from ArcGIS cache LODs). Set on the MapLibre raster *source*, so zooming further overzooms (upscales) the deepest tiles instead of fetching blank ones. Distinct from `ImageryLayerConfig.maxZoom`, which hides the layer past that zoom. Mirrors `WmtsSource.maxZoom` |
 | `auth` | `SourceAuth` | No | Authentication credentials (see below) |
 | `proxy` | `boolean` | No | Route requests through the admin server to protect credentials and bypass CORS. See [PROXY.md](./PROXY.md) |
+
+### ArcGIS cached MapServers
+
+An ArcGIS REST **cached** MapServer root URL (e.g.
+`https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer`)
+can be saved as an imagery source in the admin's External Sources page. At
+save time the service description (`?f=json`) is inspected: the service must be
+a fused tile cache (`singleFusedMapCache`) in Web Mercator, and its LOD range
+becomes the source `maxZoom`. Tiles are served via the XYZ template
+`{url}/tile/{z}/{y}/{x}` (ArcGIS uses z/row/col ordering; MapLibre substitutes
+the tokens by name). To use one as a basemap, save it as an imagery source and
+create the basemap in "From imagery source" mode — the admin server synthesizes
+the MapLibre style at `/api/basemaps/<id>/style.json`.
+
+## WmtsSource
+
+Describes a WMTS imagery server (identified by `sourceType: 'wmts'` in the
+`sources` array). The admin editor fetches GetCapabilities to populate the
+layer/style/matrix-set fields and resolves `tileUrlTemplate` and `maxZoom`
+from it at save time.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | Yes | Unique identifier (referenced by `ImageryLayerConfig.sourceId`) |
+| `sourceType` | `"wmts"` | Yes | Discriminator marking this as a WMTS source |
+| `capabilitiesUrl` | `string` (URL) | Yes | GetCapabilities document URL |
+| `layer` | `string` | Yes | WMTS layer identifier |
+| `style` | `string` | No | WMTS style; default `"default"` |
+| `format` | `string` | No | Tile image format; default `"image/png"` |
+| `tileMatrixSet` | `string` | No | Matrix set; default `"WebMercatorQuad"` |
+| `tileSize` | `number` | No | Tile size in px; default `256` |
+| `maxZoom` | `number` (0–24) | No | Deepest zoom with native tiles. Set on the MapLibre raster *source*, so zooming further overzooms (upscales) the deepest tiles instead of fetching blank ones. Distinct from `ImageryLayerConfig.maxZoom`, which hides the layer past that zoom. Auto-filled from capabilities in the admin editor |
+| `tileUrlTemplate` | `string` | No | Resolved `{z}/{y}/{x}` tile URL template; auto-filled from capabilities |
+| `label` | `string` | No | Human-readable name |
+| `auth` | `SourceAuth` | No | Authentication credentials (see below) |
+| `proxy` | `boolean` | No | Route requests through the admin server |
 
 ### SourceAuth
 
@@ -90,6 +127,32 @@ Defines a single map layer.
 | `legend` | `LegendConfig` | No | Legend entries (auto-derived from style if omitted) |
 | `filters` | `FilterConfig` | No | Initial/static filter state |
 | `search` | `SearchConfig` | No | Search fields for the SearchPanel |
+| `propertyDisplay` | `PropertyDisplayConfig` | No | Which feature properties to show in tooltips/detail panels, with labels and order |
+
+### PropertyDisplayConfig
+
+A record keyed by property name controlling what `FeatureTooltip` and `FeatureDetailPanel` show. When omitted, all properties are shown with their raw names.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `label` | `string` | No | Friendly display name (falls back to the property key) |
+| `visible` | `boolean` | No (default `true`) | Hide the property without removing its config |
+| `order` | `number` (integer ≥ 0) | No | Explicit display position, lowest first. Entries without `order` appear after ordered ones, in key order. |
+| `type` | `'text' \| 'link'` | No (default `'text'`) | How the value is rendered. `'link'` renders the value as a clickable hyperlink when it is a valid `http(s)` URL. |
+| `linkText` | `string` | No | Anchor text for `type: 'link'` entries (defaults to a generic "Open ↗" label). Ignored for `type: 'text'`. |
+
+`order` exists because the admin DB stores configs as Postgres `jsonb`, which does **not** preserve object key order — key order alone cannot express display order. The admin editor stamps `order` automatically on every edit; legacy configs without it keep their previous behavior.
+
+`type: 'link'` safety: only absolute `http://` / `https://` values render as links — `javascript:`/`data:` URIs, relative paths, and non-string values silently fall back to plain text. Links always open in a new tab with `rel="noopener noreferrer"`.
+
+```json
+"propertyDisplay": {
+  "owner": { "label": "Owner", "order": 0 },
+  "acres": { "label": "Acres", "order": 1 },
+  "internal_id": { "visible": false, "order": 2 },
+  "assessorlink": { "label": "Assessor Record", "visible": true, "type": "link", "linkText": "View Assessor Record", "order": 3 }
+}
+```
 
 ---
 
@@ -193,6 +256,39 @@ correct.
 The legend `Generate from styles` button picks up `dashByCategory` and
 produces one entry per case — each with a dashed-line swatch faithfully
 matching the rendered pattern.
+
+#### Zoom-level visibility per style (`minZoom`/`maxZoom`)
+
+Every style (fill, line, circle, symbol) accepts optional `minZoom`/`maxZoom`
+fields (0–24, `minZoom <= maxZoom` enforced by the schema). They narrow the
+layer's own zoom range for just that style: at render time
+`resolveStyleZoomBounds(layer, style)` intersects the two ranges (effective
+min = the greater of the two mins, effective max = the lesser of the two
+maxes) and applies the result to every MapLibre `<Layer>` the style produces —
+including all `dashByCategory`-expanded sub-layers.
+
+This lets one layer stack styles that appear and disappear at different zoom
+levels. For example, road classes over a single collection:
+
+```ts
+{
+  id: 'roads',
+  // ...
+  styles: [
+    // 4WD tracks: only while zoomed in
+    { type: 'line', paint: { 'line-color': '#a05a2c', 'line-width': 1 }, minZoom: 11 },
+    // Local roads: mid zooms and up
+    { type: 'line', paint: { 'line-color': '#888', 'line-width': 1.5 }, minZoom: 8 },
+    // Highways: always visible (no override — inherits the layer's range)
+    { type: 'line', paint: { 'line-color': '#d97706', 'line-width': 2.5 } },
+  ],
+}
+```
+
+Combine with per-style `geometryFilter` or data-driven paint expressions to
+scope each style to its road class. Blank/omitted values are unbounded. Note
+the schema only validates each style's own `minZoom <= maxZoom`; a style range
+that falls entirely outside the layer's range simply never renders.
 
 ### Circle Style
 
@@ -539,6 +635,14 @@ An icon sprite definition used by symbol layers.
 { id: 'my-icons', url: 'https://example.com/sprites/icons' }
 ```
 
+> **Reserved id: `shields`.** Every map automatically gets a bundled default
+> highway-shield sprite sheet merged in at runtime (SDF icons, tintable via
+> `icon-color`): `shields:shield-generic`, `shields:shield-interstate`,
+> `shields:shield-us-route`, `shields:shield-state`, `shields:shield-circle`,
+> `shields:shield-rect`. It is not part of the persisted config. Adding a
+> custom `SpriteSource` with `id: 'shields'` overrides/replaces it entirely.
+> Regenerate the bundled assets with `pnpm build:shields`.
+
 ---
 
 ## UIConfig
@@ -559,6 +663,7 @@ Controls which UI panels are visible. All fields default to shown, except `showS
 | `showScaleBar` | `boolean` | `false` | Show/hide the `ScaleBarControl` at the bottom-left of the map |
 | `legendOrder` | `string[]` | _(unset)_ | Optional explicit display order for legend layers (array of layer IDs). Unlisted legend-bearing layers follow in natural order |
 | `coordinateFormat` | `"decimal-degrees" \| "ddm" \| "dms"` | `"decimal-degrees"` | Default format for the cursor coordinate readout (decimal degrees, degree decimal minutes, or degrees-minutes-seconds) |
+| `defaultLabelFont` | `string[]` | `["Open Sans Bold"]` | Default `text-font` fallback list for symbol styles that don't set their own `text-font`. Per-style overrides in the Style Editor always win. Names must exist on the active basemap's glyph server |
 
 ---
 

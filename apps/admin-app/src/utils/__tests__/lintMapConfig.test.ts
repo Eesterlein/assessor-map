@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { lintMapConfig, isSearchFieldTypeCompatible } from '../lintMapConfig';
-import type { ImageryLayerConfig, LayerConfig, SearchField, AvailableProperty, GlobalSearchConfig } from '@techtraverse/map-ui-lib';
+import type { BasemapConfig, ImageryLayerConfig, LayerConfig, SearchField, AvailableProperty, GlobalSearchConfig } from '@techtraverse/map-ui-lib';
 
 const baseImagery: ImageryLayerConfig = {
   id: 'i1',
@@ -22,10 +22,11 @@ describe('isSearchFieldTypeCompatible', () => {
     return { type, property, label: '' };
   };
 
-  it('text fields accept string + unknown but not number/boolean', () => {
+  it('text fields accept string + unknown but not number/integer/boolean', () => {
     expect(isSearchFieldTypeCompatible(f('text'), ap('string'))).toBe(true);
     expect(isSearchFieldTypeCompatible(f('text'), ap(''))).toBe(true);
     expect(isSearchFieldTypeCompatible(f('text'), ap('number'))).toBe(false);
+    expect(isSearchFieldTypeCompatible(f('text'), ap('integer'))).toBe(false);
     expect(isSearchFieldTypeCompatible(f('text'), ap('boolean'))).toBe(false);
   });
 
@@ -33,6 +34,15 @@ describe('isSearchFieldTypeCompatible', () => {
     expect(isSearchFieldTypeCompatible(f('number'), ap('number'))).toBe(true);
     expect(isSearchFieldTypeCompatible(f('number'), ap('integer'))).toBe(true);
     expect(isSearchFieldTypeCompatible(f('number'), ap('string'))).toBe(false);
+    expect(isSearchFieldTypeCompatible(f('number'), ap('boolean'))).toBe(false);
+  });
+
+  it('select fields accept any scalar type except boolean', () => {
+    expect(isSearchFieldTypeCompatible(f('select'), ap('string'))).toBe(true);
+    expect(isSearchFieldTypeCompatible(f('select'), ap('number'))).toBe(true);
+    expect(isSearchFieldTypeCompatible(f('select'), ap('integer'))).toBe(true);
+    expect(isSearchFieldTypeCompatible(f('select'), ap(''))).toBe(true);
+    expect(isSearchFieldTypeCompatible(f('select'), ap('boolean'))).toBe(false);
   });
 
   it('datetime fields accept date/date-time format strings', () => {
@@ -56,6 +66,10 @@ describe('lintMapConfig', () => {
     expect(lintMapConfig(empty)).toEqual([]);
   });
 
+  it('accepts an explicit empty basemaps array', () => {
+    expect(lintMapConfig({ ...empty, basemaps: [] })).toEqual([]);
+  });
+
   it('flags an incomplete imagery row', () => {
     const issues = lintMapConfig({ ...empty, imageryLayers: [{ ...baseImagery }] });
     expect(issues).toHaveLength(1);
@@ -69,6 +83,66 @@ describe('lintMapConfig', () => {
       imageryLayers: [{ ...baseImagery, tileUrlTemplate: 'https://example.com/{z}/{x}/{y}.png' }],
     });
     expect(issues).toHaveLength(0);
+  });
+
+  it('warns (not errors) on a blank-labeled imagery row that is otherwise complete', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{
+        ...baseImagery,
+        label: '',
+        tileUrlTemplate: 'https://example.com/{z}/{x}/{y}.png',
+      }],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].path).toBe('Imagery layer #1');
+    expect(issues[0].message).toMatch(/no label/i);
+  });
+
+  it('warns on a whitespace-only imagery label', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: '   ', sourceId: 's1', collection: 'ortho' }],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  it('does not double-report an imagery row that is both incomplete and blank-labeled', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: '' }], // incomplete AND blank label
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('error');
+  });
+
+  it('does not warn on a complete imagery row with a label', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, label: 'Aerial', sourceId: 's1', collection: 'ortho' }],
+    });
+    expect(issues).toHaveLength(0);
+  });
+
+  it('warns on a blank-labeled basemap', () => {
+    const basemaps: BasemapConfig[] = [
+      { id: 'osm', label: '', url: 'https://example.com/style.json' },
+    ];
+    const issues = lintMapConfig({ ...empty, basemaps });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].path).toBe('Basemap #1');
+    expect(issues[0].message).toMatch(/no label/i);
+  });
+
+  it('does not warn on basemaps with labels', () => {
+    const basemaps: BasemapConfig[] = [
+      { id: 'osm', label: 'OpenStreetMap', url: 'https://example.com/style.json' },
+      { id: 'sat', label: 'Satellite', url: 'https://example.com/sat.json' },
+    ];
+    expect(lintMapConfig({ ...empty, basemaps })).toHaveLength(0);
   });
 
   it('flags a search field with a non-existent property', () => {
@@ -126,6 +200,69 @@ describe('lintMapConfig', () => {
     expect(issues).toHaveLength(0);
   });
 
+  it('does not flag an imagery row with a sourceId + collection', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [{ ...baseImagery, sourceId: 's1', collection: 'ortho' }],
+    });
+    expect(issues).toHaveLength(0);
+  });
+
+  it('reports errors only for incomplete imagery rows when mixed with complete ones', () => {
+    const issues = lintMapConfig({
+      ...empty,
+      imageryLayers: [
+        { ...baseImagery, id: 'ok', tileUrlTemplate: 'https://example.com/{z}/{x}/{y}.png' },
+        { ...baseImagery, id: 'bad1' }, // incomplete
+        { ...baseImagery, id: 'ok2', sourceId: 's1', collection: 'c1' },
+        { ...baseImagery, id: 'bad2' }, // incomplete
+      ],
+    });
+    expect(issues).toHaveLength(2);
+    expect(issues[0].remediation).toEqual({ kind: 'remove-imagery-row', index: 1 });
+    expect(issues[1].remediation).toEqual({ kind: 'remove-imagery-row', index: 3 });
+  });
+
+  it('skips search-field validation for a layer whose queryables are absent (not loading)', () => {
+    // queryablesLoading not set, queryablesByLayer has no entry → silent skip
+    const layer: LayerConfig = {
+      id: 'roads',
+      label: 'Roads',
+      sourceId: 's1',
+      collection: 'roads',
+      styles: [],
+      search: { fields: [{ type: 'text', property: 'phantom_field', label: 'X', autocomplete: false }] },
+    } as unknown as LayerConfig;
+    const issues = lintMapConfig({
+      ...empty,
+      layers: [layer],
+      queryablesByLayer: {}, // no entry for 'roads'
+    });
+    expect(issues).toHaveLength(0);
+  });
+
+  it('returns no issues for a layer with no search config', () => {
+    const layer: LayerConfig = {
+      id: 'roads',
+      label: 'Roads',
+      sourceId: 's1',
+      collection: 'roads',
+      styles: [],
+    } as unknown as LayerConfig;
+    expect(lintMapConfig({ ...empty, layers: [layer] })).toHaveLength(0);
+  });
+
+  it('handles a global-search entry with an empty properties array', () => {
+    const globalSearch: GlobalSearchConfig = {
+      enabled: true,
+      maxResultsPerLayer: 5,
+      debounceMs: 250,
+      minQueryLength: 2,
+      layers: [{ layerId: 'empty-layer', properties: [] }],
+    } as unknown as GlobalSearchConfig;
+    expect(lintMapConfig({ ...empty, globalSearch })).toHaveLength(0);
+  });
+
   it('warns on duplicate global-search properties + missing labels', () => {
     const globalSearch: GlobalSearchConfig = {
       enabled: true,
@@ -139,7 +276,7 @@ describe('lintMapConfig', () => {
           { property: 'name' }, // duplicate AND no label
         ],
       }],
-    } as GlobalSearchConfig;
+    } as unknown as GlobalSearchConfig;
     const issues = lintMapConfig({ ...empty, globalSearch });
     // 1 duplicate warning + 1 missing-label warning
     expect(issues).toHaveLength(2);

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Generic business/reference route marker: rounded square
+       (visually distinct from shield-generic's wider rectangle). -->
+  <rect x="4" y="4" width="22" height="22" rx="4" fill="#000"/>
+</svg>

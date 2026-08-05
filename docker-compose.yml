@@ -159,5 +159,30 @@ services:
     volumes:
       - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  firms-poller:
+    build:
+      context: ./apps/firms-poller
+    container_name: techtraverse-firms-poller
+    depends_on:
+      postgis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      tipg:
+        condition: service_started
+    environment:
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
+      FIRMS_AREA: -109,37,-102,41
+      FIRMS_DAYS: '1'
+      FIRMS_SOURCE: VIIRS_SNPP_NRT
+      FIRMS_INTERVAL_MS: '1800000'
+      TIPG_REFRESH_URL: http://tipg:8000/refresh
+      PGHOST: postgis
+      PGPORT: '5432'
+      PGDATABASE: gis
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    restart: unless-stopped
+
 volumes:
   postgis_data:

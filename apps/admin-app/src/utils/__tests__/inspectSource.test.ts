@@ -582,6 +582,49 @@ describe('inspectSourceClientSide', () => {
     });
   });
 
+  describe('ArcGIS cached MapServer source', () => {
+    const ARCGIS_ROOT =
+      'https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer';
+    const arcgisJson = {
+      mapName: 'Layers',
+      copyrightText: '© 2013 National Geographic Society, i-cubed',
+      singleFusedMapCache: true,
+      tileInfo: {
+        rows: 256,
+        cols: 256,
+        spatialReference: { wkid: 102100, latestWkid: 3857 },
+        lods: Array.from({ length: 16 }, (_, level) => ({ level })),
+      },
+    };
+
+    it('returns metadata.arcgis with template and zoom range', async () => {
+      fetchMock = fetchByUrl([{ match: /MapServer\?f=json$/, response: jsonResponse(arcgisJson) }]);
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await inspectSourceClientSide(ARCGIS_ROOT);
+      expect(result.errors).toEqual([]);
+      expect(result.landing?.title).toBe('Layers');
+      expect(result.arcgis).toMatchObject({
+        tileUrlTemplate: `${ARCGIS_ROOT}/tile/{z}/{y}/{x}`,
+        minZoom: 0,
+        maxZoom: 15,
+        tileSize: 256,
+      });
+    });
+
+    it('reports an error for non-cached MapServers', async () => {
+      fetchMock = fetchByUrl([
+        {
+          match: /MapServer\?f=json$/,
+          response: jsonResponse({ ...arcgisJson, singleFusedMapCache: false }),
+        },
+      ]);
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await inspectSourceClientSide(ARCGIS_ROOT);
+      expect(result.arcgis).toBeUndefined();
+      expect(result.errors[0]).toMatch(/not a cached tile service/);
+    });
+  });
+
   describe('Timeout / error handling', () => {
     it('reports "Request timed out" on AbortError', async () => {
       const abortErr = new Error('aborted');

@@ -7,6 +7,10 @@
  *
  * Currently handles:
  *  - Imagery rows that have no source/collection AND no custom tile URL.
+ *  - Otherwise-complete imagery rows with a blank label (warning — the
+ *    imagery toggle falls back to the row's ID).
+ *  - Basemaps with a blank label (warning — the basemap toggle falls back
+ *    to the basemap's ID).
  *  - Per-layer search fields whose `property` is unknown to that layer's
  *    queryables, or whose `type` is incompatible with the queryable's type.
  *  - Global-search property rows that duplicate another `property` within
@@ -15,6 +19,7 @@
 
 import type {
   AvailableProperty,
+  BasemapConfig,
   ImageryLayerConfig,
   LayerConfig,
   SearchField,
@@ -85,6 +90,8 @@ export function isSearchFieldTypeCompatible(
 export interface LintInput {
   layers: LayerConfig[];
   imageryLayers: ImageryLayerConfig[];
+  /** Optional so existing callers/fixtures that omit it keep working. */
+  basemaps?: BasemapConfig[];
   globalSearch: GlobalSearchConfig | undefined;
   /** Map of layer-id → AvailableProperty[] from the queryables fetcher. */
   queryablesByLayer: Record<string, AvailableProperty[]>;
@@ -95,7 +102,7 @@ export interface LintInput {
 
 export function lintMapConfig(input: LintInput): WizardLintIssue[] {
   const issues: WizardLintIssue[] = [];
-  const { layers, imageryLayers, globalSearch, queryablesByLayer, queryablesLoading } = input;
+  const { layers, imageryLayers, basemaps = [], globalSearch, queryablesByLayer, queryablesLoading } = input;
 
   // --- Imagery rows ---
   imageryLayers.forEach((layer, index) => {
@@ -105,6 +112,25 @@ export function lintMapConfig(input: LintInput): WizardLintIssue[] {
         path: `Imagery layer #${index + 1}`,
         message: `"${layer.label || layer.id || 'Untitled'}" needs a Source + Collection or a custom Tile URL.`,
         remediation: { kind: 'remove-imagery-row', index },
+      });
+    } else if (!layer.label || layer.label.trim().length === 0) {
+      // Only warn when the row is otherwise fetchable — incomplete rows
+      // already get the (more urgent) error above.
+      issues.push({
+        severity: 'warning',
+        path: `Imagery layer #${index + 1}`,
+        message: 'No label set — the imagery toggle will show its ID instead of a friendly name.',
+      });
+    }
+  });
+
+  // --- Basemaps: blank labels ---
+  basemaps.forEach((basemap, index) => {
+    if (!basemap.label || basemap.label.trim().length === 0) {
+      issues.push({
+        severity: 'warning',
+        path: `Basemap #${index + 1}`,
+        message: 'No label set — the basemap toggle will show its ID instead of a friendly name.',
       });
     }
   });

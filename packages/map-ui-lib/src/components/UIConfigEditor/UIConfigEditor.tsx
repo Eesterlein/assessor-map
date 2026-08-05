@@ -41,6 +41,23 @@ const COORDINATE_FORMAT_LABELS: Record<(typeof COORDINATE_FORMATS)[number], stri
   dms: "Degree minutes seconds (38° 53' 15\" N, 104° 49' 27\" W)",
 };
 
+/**
+ * Curated font-stack names verified against the CARTO/OpenMapTiles glyph
+ * servers used by this project's default basemaps. A basemap pointing at a
+ * different glyph endpoint may not serve every preset — hence the Custom option.
+ */
+const LABEL_FONT_PRESETS = [
+  'Open Sans Bold',
+  'Open Sans Regular',
+  'Open Sans Semibold',
+  'Open Sans Italic',
+  'Noto Sans Regular',
+  'Montserrat Regular',
+  'Montserrat Medium',
+] as const;
+
+const CUSTOM_FONT_SENTINEL = '__custom__';
+
 const TOGGLE_LABELS: { key: string; label: string; description: string }[] = [
   { key: 'showLayerPanel', label: 'Layer Panel', description: 'Toggle layer visibility' },
   { key: 'showLegend', label: 'Legend', description: 'Map legend' },
@@ -97,6 +114,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 export function UIConfigEditor({ value, onChange, autoEnabled, layers, infoEnabled, onInfoEnabledChange }: UIConfigEditorProps) {
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  // Default label font: preset select + free-text custom fallback.
+  const isPresetLabelFont =
+    value.defaultLabelFont?.length === 1 &&
+    (LABEL_FONT_PRESETS as readonly string[]).includes(value.defaultLabelFont[0]);
+  const [customFontMode, setCustomFontMode] = useState(false);
+  const showCustomFontInput = customFontMode || (value.defaultLabelFont != null && !isPresetLabelFont);
+  const [customFontDraft, setCustomFontDraft] = useState(() => (value.defaultLabelFont ?? []).join(', '));
 
   const controlOrder = useMemo(() => resolveControlOrder(value), [value]);
 
@@ -500,6 +525,60 @@ export function UIConfigEditor({ value, onChange, autoEnabled, layers, infoEnabl
           </select>
         </CollapsibleSection>
       )}
+
+      {/* Default label font */}
+      <CollapsibleSection title="Default Label Font">
+        <p className="mapui:m-0 mapui:mb-2 mapui:text-xs mapui:text-slate-500">
+          Default font for layer labels (symbol styles) that don't set their own Text Font.
+          Per-style Text Font overrides in the Style Editor always take precedence. Custom
+          names must exist on the active basemap's glyph server or labels will not render.
+        </p>
+        <div className="mapui:flex mapui:flex-col mapui:gap-2">
+          <select
+            value={showCustomFontInput ? CUSTOM_FONT_SENTINEL : (value.defaultLabelFont?.[0] ?? 'Open Sans Bold')}
+            onChange={(e) => {
+              const selected = e.target.value;
+              if (selected === CUSTOM_FONT_SENTINEL) {
+                setCustomFontMode(true);
+                setCustomFontDraft((value.defaultLabelFont ?? []).join(', '));
+                return;
+              }
+              setCustomFontMode(false);
+              onChange({ ...value, defaultLabelFont: [selected] });
+            }}
+            className="mapui:rounded mapui:border mapui:border-slate-300 mapui:bg-white mapui:px-2 mapui:py-1.5 mapui:text-sm mapui:text-slate-800 focus:mapui:border-blue-500 focus:mapui:outline-none"
+            aria-label="Default label font"
+          >
+            {LABEL_FONT_PRESETS.map((font) => (
+              <option key={font} value={font}>
+                {font}
+              </option>
+            ))}
+            <option value={CUSTOM_FONT_SENTINEL}>Custom…</option>
+          </select>
+          {showCustomFontInput && (
+            <FormField label="Custom font stack (comma-separated, first match wins)">
+              <input
+                type="text"
+                value={customFontDraft}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  setCustomFontDraft(text);
+                  const fonts = text
+                    .split(',')
+                    .map((f) => f.trim())
+                    .filter(Boolean);
+                  if (fonts.length > 0) {
+                    onChange({ ...value, defaultLabelFont: fonts });
+                  }
+                }}
+                placeholder="e.g. Noto Sans Bold, Open Sans Bold"
+                className="mapui:w-full mapui:rounded mapui:border mapui:border-slate-300 mapui:bg-white mapui:px-2 mapui:py-1.5 mapui:text-sm mapui:text-slate-800 focus:mapui:border-blue-500 focus:mapui:outline-none"
+              />
+            </FormField>
+          )}
+        </div>
+      </CollapsibleSection>
 
       {/* Legend display (background, text, border colors) */}
       {value.showLegend && (

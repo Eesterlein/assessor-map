@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ImageryLayerConfig } from '../../types';
+import { resolveDisplayLabel } from '../../utils/labelUtils';
 
 function ImageryThumbnail({ url, label }: { url?: string; label: string }) {
   const [failed, setFailed] = useState(false);
@@ -60,9 +61,9 @@ export function ImageryPanel({
                 onChange={() => onToggleVisibility(layer.id)}
                 className="mapui:h-4 mapui:w-4 mapui:cursor-pointer mapui:accent-slate-700"
               />
-              <ImageryThumbnail url={layer.thumbnailUrl} label={layer.label} />
+              <ImageryThumbnail url={layer.thumbnailUrl} label={resolveDisplayLabel(layer)} />
               <span className="mapui:flex-1 mapui:text-sm mapui:text-slate-800 mapui:truncate">
-                {layer.label}
+                {resolveDisplayLabel(layer)}
               </span>
               {layer.exclusive && (
                 <span

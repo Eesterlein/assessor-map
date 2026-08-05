@@ -1,4 +1,5 @@
 import type { BasemapConfig } from '../../types';
+import { resolveDisplayLabel } from '../../utils/labelUtils';
 
 export interface BasemapSwitcherProps {
   basemaps: BasemapConfig[];
@@ -40,7 +41,7 @@ export function BasemapSwitcher({
                 className="mapui:h-12 mapui:w-16 mapui:rounded mapui:object-cover"
               />
             )}
-            <span>{basemap.label}</span>
+            <span>{resolveDisplayLabel(basemap)}</span>
           </button>
         );
       })}

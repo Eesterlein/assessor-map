@@ -1,11 +1,18 @@
 import { Fragment, useEffect, useState } from 'react';
 import { SourceEditor, BasemapEditor, ConfirmDialog, WmtsSourceEditor } from '@techtraverse/map-ui-lib';
 import type { OgcApiSource, SourceAuth, BasemapConfig, WmtsSource } from '@techtraverse/map-ui-lib';
-import { detectTileSourceType, appendAuth, authHeaders } from '@techtraverse/map-ui-lib/utils';
+import {
+  detectTileSourceType,
+  appendAuth,
+  authHeaders,
+  validateSourceUrl,
+  isArcgisMapServerUrl,
+  fetchArcgisServiceInfo,
+} from '@techtraverse/map-ui-lib/utils';
 import { SourceMetadataPanel } from '../components/SourceMetadataPanel';
 import type { InspectionResult } from '../components/SourceMetadataPanel';
 import { inspectSourceClientSide } from '../utils/inspectSource';
-import { savedSourceToWmts, savedSourceIsImagery } from '../utils/wmtsSource';
+import { savedSourceToWmts, savedSourceIsImagery, wmtsSourceToSavedFields, type WmtsSourceMetadata } from '../utils/wmtsSource';
 
 // WMTS is folded into the Imagery tab (it is intrinsically raster imagery);
 // individual rows are distinguished by their `source_type` of 'wmts'.
@@ -17,13 +24,7 @@ const TAB_LABELS: Record<SourceTab, string> = {
   basemap: 'Basemaps',
 };
 
-interface WmtsMetadata {
-  wmtsLayer?: string;
-  wmtsStyle?: string;
-  wmtsFormat?: string;
-  wmtsTileMatrixSet?: string;
-  wmtsTileSize?: number;
-}
+type WmtsMetadata = WmtsSourceMetadata;
 
 type BasemapMode = 'style-url' | 'from-imagery';
 
@@ -203,7 +204,7 @@ export function SourcesPage() {
 
   // Create/edit state for basemaps
   const [addingNewBasemap, setAddingNewBasemap] = useState(false);
-  const [newBasemap, setNewBasemap] = useState<BasemapConfig>({ id: '', label: '', url: '' });
+  const [newBasemap, setNewBasemap] = useState<BasemapConfig>({ id: '', label: 'New Basemap', url: '' });
   const [editingBasemap, setEditingBasemap] = useState<BasemapConfig | null>(null);
 
   // Create/edit state for WMTS sources
@@ -226,7 +227,7 @@ export function SourcesPage() {
   // from an existing imagery source (the server synthesizes the style.json).
   const [basemapMode, setBasemapMode] = useState<BasemapMode>('style-url');
   const [newImageryBasemap, setNewImageryBasemap] = useState<ImageryBasemapDraft>({
-    source_id: '', label: '', imagery_source_id: '', collection_id: '', thumbnail: '',
+    source_id: '', label: 'New Basemap', imagery_source_id: '', collection_id: '', thumbnail: '',
   });
   const [editingImageryBasemap, setEditingImageryBasemap] = useState<ImageryBasemapDraft | null>(null);
 
@@ -303,6 +304,13 @@ export function SourcesPage() {
 
     // Try client-side first (browser fetches directly)
     try {
+      if (sourceType === 'arcgis') {
+        // Succeeds only for a cached Web-Mercator tile service
+        await fetchArcgisServiceInfo(testUrl, auth ?? undefined, AbortSignal.timeout(10_000));
+        setTestStatus(prev => ({ ...prev, [key]: 'success' }));
+        return;
+      }
+
       let testEndpoint: string;
       let acceptHeader = 'application/json';
       if (sourceType === 'tilejson') {
@@ -358,14 +366,38 @@ export function SourcesPage() {
     }
   };
 
+  // Validate a basemap Style-URL field; returns the normalized url, or null
+  // after setting the error. ArcGIS MapServer roots get a guided message
+  // (mirror of the server-side 400) so the user never round-trips.
+  const validateBasemapStyleUrl = (url: string): string | null => {
+    const validated = validateSourceUrl(url, { allowRelative: true });
+    if (!validated.ok) {
+      setActionError(validated.error);
+      return null;
+    }
+    if (isArcgisMapServerUrl(validated.url)) {
+      setActionError(
+        'An ArcGIS MapServer URL is not a MapLibre style. Save it as an Imagery source first, then create the basemap in "From imagery source" mode.',
+      );
+      return null;
+    }
+    return validated.url;
+  };
+
   const handleCreate = async () => {
     setSaving(true);
     setActionError(null);
     try {
+      const validated = validateSourceUrl(newSource.url);
+      if (!validated.ok) {
+        setActionError(validated.error);
+        return;
+      }
+
       // Try client-side inspection first
       let clientMetadata: InspectionResult | undefined;
       try {
-        clientMetadata = await inspectSourceClientSide(newSource.url, newSource.auth);
+        clientMetadata = await inspectSourceClientSide(validated.url, newSource.auth);
       } catch {
         // Client-side inspection failed (CORS/network) — server will auto-inspect
       }
@@ -376,7 +408,7 @@ export function SourcesPage() {
         credentials: 'include',
         body: JSON.stringify({
           source_id: newSource.id,
-          url: newSource.url,
+          url: validated.url,
           label: newSource.label || null,
           tile_matrix_set_id: newSource.tileMatrixSetId || 'WebMercatorQuad',
           source_type: activeTab,
@@ -406,13 +438,15 @@ export function SourcesPage() {
     setSaving(true);
     setActionError(null);
     try {
+      const validated = validateBasemapStyleUrl(newBasemap.url);
+      if (!validated) return;
       const res = await fetch('/api/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           source_id: newBasemap.id,
-          url: newBasemap.url,
+          url: validated,
           label: newBasemap.label || null,
           source_type: 'basemap',
           thumbnail: newBasemap.thumbnail || null,
@@ -424,7 +458,7 @@ export function SourcesPage() {
         return;
       }
       setAddingNewBasemap(false);
-      setNewBasemap({ id: '', label: '', url: '' });
+      setNewBasemap({ id: '', label: 'New Basemap', url: '' });
       await fetchSources();
     } catch (err) {
       setActionError(String(err));
@@ -470,7 +504,7 @@ export function SourcesPage() {
         return;
       }
       setAddingNewBasemap(false);
-      setNewImageryBasemap({ source_id: '', label: '', imagery_source_id: '', collection_id: '', thumbnail: '' });
+      setNewImageryBasemap({ source_id: '', label: 'New Basemap', imagery_source_id: '', collection_id: '', thumbnail: '' });
       setBasemapMode('style-url');
       await fetchSources();
     } catch (err) {
@@ -532,13 +566,18 @@ export function SourcesPage() {
     setSaving(true);
     setActionError(null);
     try {
+      const validated = validateSourceUrl(editingSource.url);
+      if (!validated.ok) {
+        setActionError(validated.error);
+        return;
+      }
       const res = await fetch(`/api/sources/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           source_id: editingSource.id,
-          url: editingSource.url,
+          url: validated.url,
           label: editingSource.label || null,
           tile_matrix_set_id: editingSource.tileMatrixSetId || 'WebMercatorQuad',
           source_type: activeTab,
@@ -566,13 +605,15 @@ export function SourcesPage() {
     setSaving(true);
     setActionError(null);
     try {
+      const validated = validateBasemapStyleUrl(editingBasemap.url);
+      if (!validated) return;
       const res = await fetch(`/api/sources/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           source_id: editingBasemap.id,
-          url: editingBasemap.url,
+          url: validated,
           label: editingBasemap.label || null,
           source_type: 'basemap',
           thumbnail: editingBasemap.thumbnail || null,
@@ -597,27 +638,17 @@ export function SourcesPage() {
     setSaving(true);
     setActionError(null);
     try {
+      const fields = wmtsSourceToSavedFields(newWmtsSource);
+      const validated = validateSourceUrl(fields.url);
+      if (!validated.ok) {
+        setActionError(validated.error);
+        return;
+      }
       const res = await fetch('/api/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          source_id: newWmtsSource.id,
-          url: newWmtsSource.capabilitiesUrl,
-          label: newWmtsSource.label || null,
-          tile_matrix_set_id: newWmtsSource.tileMatrixSet || 'WebMercatorQuad',
-          source_type: 'wmts',
-          auth: newWmtsSource.auth ?? null,
-          proxy: newWmtsSource.proxy ?? false,
-          metadata: {
-            wmtsLayer: newWmtsSource.layer,
-            wmtsStyle: newWmtsSource.style,
-            wmtsFormat: newWmtsSource.format,
-            wmtsTileMatrixSet: newWmtsSource.tileMatrixSet,
-            wmtsTileSize: newWmtsSource.tileSize,
-            wmtsTileUrlTemplate: newWmtsSource.tileUrlTemplate,
-          },
-        }),
+        body: JSON.stringify({ ...fields, url: validated.url }),
       });
       if (!res.ok) {
         const data = await res.json() as { error: string };
@@ -640,27 +671,17 @@ export function SourcesPage() {
     setSaving(true);
     setActionError(null);
     try {
+      const fields = wmtsSourceToSavedFields(editingWmtsSource);
+      const validated = validateSourceUrl(fields.url);
+      if (!validated.ok) {
+        setActionError(validated.error);
+        return;
+      }
       const res = await fetch(`/api/sources/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          source_id: editingWmtsSource.id,
-          url: editingWmtsSource.capabilitiesUrl,
-          label: editingWmtsSource.label || null,
-          tile_matrix_set_id: editingWmtsSource.tileMatrixSet || 'WebMercatorQuad',
-          source_type: 'wmts',
-          auth: editingWmtsSource.auth ?? null,
-          proxy: editingWmtsSource.proxy ?? false,
-          metadata: {
-            wmtsLayer: editingWmtsSource.layer,
-            wmtsStyle: editingWmtsSource.style,
-            wmtsFormat: editingWmtsSource.format,
-            wmtsTileMatrixSet: editingWmtsSource.tileMatrixSet,
-            wmtsTileSize: editingWmtsSource.tileSize,
-            wmtsTileUrlTemplate: editingWmtsSource.tileUrlTemplate,
-          },
-        }),
+        body: JSON.stringify({ ...fields, url: validated.url }),
       });
       if (!res.ok) {
         const data = await res.json() as { error: string };
@@ -798,8 +819,8 @@ export function SourcesPage() {
   const handleAddNew = () => {
     if (activeTab === 'basemap') {
       setAddingNewBasemap(true);
-      setNewBasemap({ id: '', label: '', url: '' });
-      setNewImageryBasemap({ source_id: '', label: '', imagery_source_id: '', collection_id: '', thumbnail: '' });
+      setNewBasemap({ id: '', label: 'New Basemap', url: '' });
+      setNewImageryBasemap({ source_id: '', label: 'New Basemap', imagery_source_id: '', collection_id: '', thumbnail: '' });
       setBasemapMode('style-url');
     } else {
       setAddingNew(true);

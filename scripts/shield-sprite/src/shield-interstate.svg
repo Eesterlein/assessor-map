@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Generic interstate-like crest: flat top, sides tapering to a rounded
+       bottom point. Deliberately NOT the AASHTO interstate trade dress
+       (no tri-color field, no eagle, different proportions). -->
+  <path fill="#000" d="M15 3
+    C 18.5 4.8 23 5.4 27.5 4.6
+    L 27.5 13
+    C 27.5 20 22.5 25 15 27.5
+    C 7.5 25 2.5 20 2.5 13
+    L 2.5 4.6
+    C 7 5.4 11.5 4.8 15 3 Z"/>
+</svg>

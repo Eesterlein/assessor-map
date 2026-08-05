@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Fire hotspot marker: teardrop pointed upward, reads as flame at icon sizes. -->
+  <path fill="#000" d="M15 1 C 10 7 3 13 3 19 C 3 25.6 8.4 29.5 15 29.5 C 21.6 29.5 27 25.6 27 19 C 27 13 20 7 15 1 Z"/>
+</svg>

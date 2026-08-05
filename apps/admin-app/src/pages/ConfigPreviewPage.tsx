@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { MapConfig, LayerConfig, ImageryLayerConfig } from '@techtraverse/map-ui-lib';
 import { MapPreview } from '../components/MapPreview';
-
-const DEFAULT_VIEW = { latitude: 0, longitude: 0, zoom: 2, pitch: 0, bearing: 0 };
+import { normalizeInitialView } from '../utils/viewConfig';
 
 export function ConfigPreviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +51,7 @@ export function ConfigPreviewPage() {
           layers={layers}
           imageryLayers={imageryLayers}
           basemaps={config.basemaps ?? []}
-          viewState={config.initialView ?? DEFAULT_VIEW}
+          viewState={normalizeInitialView(config.initialView)}
           onLayersChange={setLayers}
           onImageryLayersChange={setImageryLayers}
           currentStep="preview"

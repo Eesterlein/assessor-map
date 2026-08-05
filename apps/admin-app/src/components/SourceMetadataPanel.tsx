@@ -231,6 +231,36 @@ export function SourceMetadataPanel({ metadata, metadataUpdatedAt, sourceUrl, on
         </CollapsibleSection>
       )}
 
+      {/* ArcGIS cached MapServer metadata */}
+      {metadata.arcgis && (
+        <CollapsibleSection title="ArcGIS Tiled MapServer" defaultOpen={true}>
+          <div className="mapui:space-y-2 mapui:text-xs">
+            <p className="mapui:text-slate-600">
+              This source is an ArcGIS cached MapServer, served as raster tiles. It does not
+              expose OGC API collections.
+            </p>
+            <div className="mapui:grid mapui:grid-cols-[auto_1fr] mapui:gap-x-3 mapui:gap-y-1">
+              <span className="mapui:text-slate-500 mapui:font-medium">Zoom Range</span>
+              <span className="mapui:text-slate-800">
+                {metadata.arcgis.minZoom} – {metadata.arcgis.maxZoom}
+              </span>
+              <span className="mapui:text-slate-500 mapui:font-medium">Tile Size</span>
+              <span className="mapui:text-slate-800">{metadata.arcgis.tileSize}px</span>
+              <span className="mapui:text-slate-500 mapui:font-medium">URL Template</span>
+              <span className="mapui:text-slate-800 mapui:font-mono mapui:break-all">
+                {metadata.arcgis.tileUrlTemplate}
+              </span>
+              {metadata.arcgis.attribution && (
+                <>
+                  <span className="mapui:text-slate-500 mapui:font-medium">Attribution</span>
+                  <span className="mapui:text-slate-800">{metadata.arcgis.attribution}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* XYZ Tile Server info (for direct tile URL sources) */}
       {!metadata.tileJson && sourceType === 'xyz' && (
         <CollapsibleSection title="XYZ Tile Server" defaultOpen={true}>
@@ -249,7 +279,7 @@ export function SourceMetadataPanel({ metadata, metadataUpdatedAt, sourceUrl, on
       )}
 
       {/* Collections (for OGC API sources) */}
-      {!metadata.tileJson && sourceType !== 'xyz' && (
+      {!metadata.tileJson && !metadata.arcgis && sourceType !== 'xyz' && sourceType !== 'arcgis' && (
       <CollapsibleSection
         title="Collections"
         defaultOpen={true}

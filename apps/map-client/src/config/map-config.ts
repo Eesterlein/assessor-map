@@ -231,6 +231,7 @@ export const mapConfig: MapConfig = {
     coordinateFormat: 'decimal-degrees',
     controlLayout: 'individual',
     sideMenuToggleCorner: 'top-right',
+    defaultLabelFont: ['Open Sans Bold'],
   },
   initialView: {
     latitude: 0,

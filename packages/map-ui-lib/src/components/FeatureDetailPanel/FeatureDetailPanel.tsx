@@ -1,3 +1,4 @@
+import type { PropertyDisplayType } from '../../types';
 import { PropertyList } from '../_shared/PropertyList';
 
 export interface FeatureDetailPanelProps {
@@ -7,6 +8,8 @@ export interface FeatureDetailPanelProps {
   title?: string;
   fields?: string[];
   labels?: Record<string, string>;
+  types?: Record<string, PropertyDisplayType>;
+  linkText?: Record<string, string>;
   variant?: 'panel' | 'modal';
   className?: string;
 }
@@ -18,6 +21,8 @@ export function FeatureDetailPanel({
   title = 'Feature Properties',
   fields,
   labels,
+  types,
+  linkText,
   variant = 'panel',
   className = '',
 }: FeatureDetailPanelProps) {
@@ -51,7 +56,14 @@ export function FeatureDetailPanel({
       </div>
       <div className="mapui:overflow-y-auto mapui:px-4 mapui:py-3">
         {properties && Object.keys(properties).length > 0 ? (
-          <PropertyList properties={properties} fields={fields} labels={labels} density="default" />
+          <PropertyList
+            properties={properties}
+            fields={fields}
+            labels={labels}
+            types={types}
+            linkText={linkText}
+            density="default"
+          />
         ) : (
           <p className="mapui:m-0 mapui:text-sm mapui:text-slate-400">No properties available.</p>
         )}

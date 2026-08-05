@@ -7,7 +7,7 @@ import { StyleEditor, defaultFill, defaultCircle } from '../StyleEditor/StyleEdi
 import { CasedLineEditor } from '../StyleEditor/CasedLineEditor';
 import { StylePresetSection } from './StylePresetSection';
 import { StyleCard } from './StyleCard';
-import { inferActivePresetId } from '../../utils/stylePresets';
+import { inferActivePresetId, buildRoadShieldsStyle } from '../../utils/stylePresets';
 import { isPlainCasedLine, type CasedLinePair } from '../../utils/casedLine';
 import { LegendEditor } from '../LegendEditor/LegendEditor';
 import { SearchFieldList } from '../SearchFieldEditor/SearchFieldList';
@@ -86,16 +86,17 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Resolve baseUrl from the selected source
+  // Resolve baseUrl and auth from the selected source
   const source = availableSources.find((s) => s.id === value.sourceId);
   const baseUrl = source?.url ?? null;
+  const sourceAuth = source?.auth;
   const collection = value.collection || null;
 
   // Fetch collections for the dropdown
-  const { collections, loading: collectionsLoading } = useOgcCollections(baseUrl);
+  const { collections, loading: collectionsLoading } = useOgcCollections(baseUrl, sourceAuth);
 
   // Fetch queryables when a collection is selected
-  const { queryables, loading: queryablesLoading } = useOgcQueryables(baseUrl, collection);
+  const { queryables, loading: queryablesLoading } = useOgcQueryables(baseUrl, collection, sourceAuth);
 
   // Derive available non-geometry properties
   const availableProperties: AvailableProperty[] = queryables
@@ -129,7 +130,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
       setSuggestedStyles(styles);
       setSuitableStyleTypes(styleTypes);
       const current = valueRef.current.styles;
-      const action = resolveStyleReapplyAction(current, styles, lastAutoAppliedRef.current);
+      const action = resolveStyleReapplyAction(current, styles, lastAutoAppliedRef.current, styleTypes);
       if (action === 'keep') {
         // Already matches detected defaults (or nothing to apply) — sync the ref.
         if (styles.length > 0 && JSON.stringify(current) === JSON.stringify(styles)) {
@@ -142,7 +143,7 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
         setGeometryMismatch(null);
         onChangeRef.current({ ...valueRef.current, styles });
       } else {
-        // User-customized styles + a geometry change → warn, don't clobber.
+        // Customized styles incompatible with the detected geometry → warn, don't clobber.
         setGeometryMismatch({ styles, types: styleTypes });
       }
     };
@@ -563,6 +564,13 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
                 );
                 update({ styles: [...(value.styles ?? [defaultFill]), style] });
               };
+              const addRoadShields = () => {
+                const style = buildRoadShieldsStyle(
+                  labelProp,
+                  isMixed ? ['LineString', 'MultiLineString'] : undefined,
+                );
+                update({ styles: [...(value.styles ?? [defaultFill]), style] });
+              };
               return (
                 <>
                   {hasLine && (
@@ -573,6 +581,16 @@ export function LayerEditor({ value, onChange, availableSources, availableIcons,
                       title={`Add a line-following symbol label using "${labelProp}"`}
                     >
                       + Add line labels
+                    </button>
+                  )}
+                  {hasLine && (
+                    <button
+                      type="button"
+                      onClick={addRoadShields}
+                      className="mapui:cursor-pointer mapui:self-start mapui:rounded mapui:border mapui:border-slate-300 mapui:bg-white mapui:px-2 mapui:py-1 mapui:text-xs mapui:text-slate-700 hover:mapui:bg-slate-50"
+                      title={`Add highway shields (tintable icon behind a "${labelProp}" route-number label)`}
+                    >
+                      + Add road shields
                     </button>
                   )}
                   {hasPolygon && (
