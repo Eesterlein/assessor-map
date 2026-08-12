@@ -38,6 +38,7 @@
     "shp-write": "^0.3.2",
     "terra-draw": "^1.31.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '@techtraverse/map-ui-lib';
 import { LuTrash2, LuDatabase, LuLayers } from 'react-icons/lu';
 import { DataUploadField } from '../components/DataUploadField';
@@ -53,6 +54,21 @@ function splitCsvLine(line: string): string[] {
   }
   result.push(current.trim());
   return result;
+}
+
+// Parse the first sheet of an Excel file into columns + rows.
+async function parseExcel(file: File): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> {
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]!];
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet!, { defval: '' });
+  const columns = raw.length > 0 ? Object.keys(raw[0]!).map(k => String(k)) : [];
+  const rows = raw.map(r => {
+    const out: Record<string, unknown> = {};
+    for (const k of columns) out[k] = r[k];
+    return out;
+  });
+  return { columns, rows };
 }
 
 const GEO_COLUMN_HINTS = new Set([
@@ -122,21 +138,28 @@ export function MyDataPage() {
     }
   };
 
-  // When a CSV file is selected in the virtual layer drop zone
+  // When a CSV or Excel file is selected in the virtual layer drop zone
   const handleCsvPick = async (file: File) => {
     try {
-      const text = await file.text();
-      const columns = parseCsvHeader(text);
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+      let columns: string[];
+      let rows: Record<string, unknown>[];
+      if (isExcel) {
+        ({ columns, rows } = await parseExcel(file));
+      } else {
+        const text = await file.text();
+        columns = parseCsvHeader(text);
+        rows = parseCsvRows(text);
+      }
       if (hasGeometryColumns(columns)) {
-        setError('This CSV appears to have geometry columns. Upload it in the GIS Data section above instead.');
+        setError('This file appears to have geometry columns. Upload it in the GIS Data section above instead.');
         return;
       }
-      const rows = parseCsvRows(text);
       setPendingCsvColumns(columns);
       setPendingCsvRows(rows);
       setPendingVirtualFile(file);
     } catch {
-      setError('Failed to read CSV file.');
+      setError('Failed to read file.');
     }
   };
 
@@ -283,7 +306,7 @@ export function MyDataPage() {
           )}
         </div>
         <p className="mapui:mt-1.5 mapui:mb-5 mapui:max-w-2xl mapui:text-sm mapui:text-slate-500">
-          Upload a CSV (no geometry required). The system will link each row to a matching GIS feature
+          Upload a CSV or Excel file (no geometry required). The system will link each row to a matching GIS feature
           using a shared key like a parcel account number, letting you style and display your CSV attributes on the map.
         </p>
 
@@ -301,7 +324,7 @@ export function MyDataPage() {
           <input
             ref={csvInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             className="mapui:hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -311,7 +334,7 @@ export function MyDataPage() {
           />
           <LuLayers className="mapui:mx-auto mapui:mb-2 mapui:h-6 mapui:w-6 mapui:text-purple-400" />
           <span className="mapui:text-slate-600">
-            Drop a CSV file here, or <span className="mapui:text-purple-600 mapui:underline">browse</span> — no geometry required
+            Drop a CSV or Excel file here, or <span className="mapui:text-purple-600 mapui:underline">browse</span> — no geometry required
           </span>
         </div>
 
