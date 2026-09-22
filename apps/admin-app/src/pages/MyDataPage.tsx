@@ -427,6 +427,9 @@ export function MyDataPage() {
               setNotice(`Virtual layer "${opts.name}" created.`);
               await refresh();
             } catch (err) {
+              setPendingVirtualFile(null);
+              setPendingCsvColumns([]);
+              setPendingCsvRows([]);
               setError(err instanceof Error ? err.message : 'Failed to save virtual layer');
             } finally {
               setSavingVirtual(false);
