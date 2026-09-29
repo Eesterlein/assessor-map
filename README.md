@@ -8,6 +8,8 @@ An interactive GIS mapping platform built for Gunnison County assessors. Support
 
 ---
 
+> **Independent research project.** This project is built from publicly available Gunnison County, Colorado assessor data downloads and GIS parcel data. It is not an official product of the Gunnison County Assessor's Office or Gunnison County, is not a system of record, and may contain errors or out-of-date information. Always verify against official county records.
+
 ## Features
 
 - **Interactive map viewer** — MapLibre GL JS with configurable layers, basemaps, and styles
