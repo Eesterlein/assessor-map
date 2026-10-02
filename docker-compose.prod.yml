@@ -6,6 +6,10 @@
 #   CORS_ORIGINS    — e.g. http://1.2.3.4  (your VPS IP)
 #   ADMIN_USERNAME  — e.g. admin
 #   ADMIN_PASSWORD_HASH — bcrypt hash, see deployment notes
+#
+# The public demo runs with smaller upload limits, and only the gateway is
+# published. Internal services stay on the Docker network so they can't be
+# reached around nginx. `!reset` needs Docker Compose 2.24.4 or newer.
 
 services:
   gateway:
@@ -18,3 +22,16 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      MAX_UPLOAD_MB: "25"
+    ports: !reset []
+
+  ingest:
+    environment:
+      INGEST_MAX_MB: "25"
+    ports: !reset []
+
+  tipg:
+    ports: !reset []
+
+  map-client:
+    ports: !reset []
