@@ -19,7 +19,9 @@ services:
 
   gateway:
     restart: unless-stopped
-    ports:
+    # !override replaces the base file's 8000:8000 instead of adding to it,
+    # so the gateway is published on port 80 only.
+    ports: !override
       - "80:8000"
 
   admin-app:
