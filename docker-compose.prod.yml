@@ -12,11 +12,18 @@
 # reached around nginx. `!reset` needs Docker Compose 2.24.4 or newer.
 
 services:
+  # restart: unless-stopped brings services back after a crash (e.g. the
+  # kernel's out-of-memory killer) or a server reboot.
+  postgis:
+    restart: unless-stopped
+
   gateway:
+    restart: unless-stopped
     ports:
       - "80:8000"
 
   admin-app:
+    restart: unless-stopped
     environment:
       SESSION_SECRET: ${SESSION_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS}
@@ -26,12 +33,15 @@ services:
     ports: !reset []
 
   ingest:
+    restart: unless-stopped
     environment:
       INGEST_MAX_MB: "25"
     ports: !reset []
 
   tipg:
+    restart: unless-stopped
     ports: !reset []
 
   map-client:
+    restart: unless-stopped
     ports: !reset []
