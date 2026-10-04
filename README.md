@@ -4,7 +4,7 @@ An interactive GIS mapping platform built for Gunnison County assessors. Support
 
 **[Live Map →](http://165.232.147.15)** &nbsp;|&nbsp; **[Admin Panel →](http://165.232.147.15/admin/)**
 
-> Admin demo credentials: username `admin` / password `password`
+> **Try the admin demo:** username `demo` / password `gunnison-demo`. Upload data, build maps, change anything you like. The demo resets to a clean copy every night (3 AM Mountain), so nothing you do sticks.
 
 ---
 
@@ -61,6 +61,16 @@ docker compose up -d
 ```
 
 Requires: Docker, pnpm
+
+## Public Demo
+
+The live server runs as an open demo. `deploy/demo/demo-setup.sh` (run once on the server) sets the demo login, applies production settings (25 MB upload cap, only the nginx gateway published, services restart automatically), saves the current database as the clean snapshot, and schedules `deploy/demo/demo-reset.sh` to restore it nightly.
+
+To change what the demo resets to, set the data up the way you want it, then on the server:
+
+```bash
+docker exec techtraverse-postgis pg_dump -U postgres -Fc gis > /opt/assessor-map-demo/golden.dump
+```
 
 ## Deploying Updates
 
