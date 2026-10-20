@@ -96,7 +96,7 @@
   },
   "optionalDependencies": {
     "@mapbox/shp-write": "^0.4.3",
-    "@ngageoint/geopackage": "^4.2.0",
+    "@ngageoint/geopackage": "^4.2.8",
     "@tmcw/tokml": "^1.0.0-alpha.0",
     "flatgeobuf": "^3.32.0"
   },
