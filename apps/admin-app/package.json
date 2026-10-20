@@ -20,7 +20,7 @@
     "@turf/bbox": "^7.3.4",
     "@turf/boolean-intersects": "^7.3.4",
     "@turf/boolean-point-in-polygon": "^7.3.4",
-    "@turf/helpers": "^7.3.4",
+    "@turf/helpers": "^7.3.5",
     "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^9.0.1",
     "cors": "^2.8.5",
