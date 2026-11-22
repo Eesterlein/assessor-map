@@ -34,6 +34,9 @@ storybook-static
 .env
 .env.local
 .env.*.local
+# Backups and variants of .env hold real secrets too (e.g. .env.backup.*)
+.env.*
+!.env.example
 
 # Claude Code local settings
 .claude/settings.local.json
