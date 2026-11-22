@@ -1,6 +1,8 @@
-# Gunnison County Assessor Map
+# Gunnison County Assessor Map (Demo)
 
-An interactive GIS mapping platform built for Gunnison County assessors. Supports configurable map layers, parcel data visualization, CSV/Excel virtual layer uploads, and wildfire detection — all managed through an admin panel and deployed on a live VPS.
+> **Independent demo.** Built from publicly available Gunnison County, Colorado GIS and assessor data. It is **not** an official Gunnison County product or a system of record, and may contain errors or out-of-date information. Always verify against official county records.
+
+An interactive GIS mapping platform designed for county assessors. Supports configurable map layers, parcel data visualization, CSV/Excel virtual layer uploads, and wildfire detection — all managed through an admin panel and deployed on a live VPS.
 
 **[Live Map →](http://165.232.147.15)** &nbsp;|&nbsp; **[Admin Panel →](http://165.232.147.15/admin/)**
 
