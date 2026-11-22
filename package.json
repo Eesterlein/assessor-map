@@ -31,7 +31,9 @@
       "path-to-regexp@~0.1.12": "0.1.13",
       "jszip": "^3.10.1",
       "lodash": "^4.18.0",
-      "tmp": "^0.2.6"
+      "tmp": "^0.2.6",
+      "proxy-addr@<2.0.8": "^2.0.8",
+      "body-parser@<1.20.9": "^1.20.9"
     },
     "patchedDependencies": {
       "@mapbox/shp-write": "patches/@mapbox__shp-write.patch"

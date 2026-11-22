@@ -1,79 +1,39 @@
 name: Claude Code Review
 
+# Runs only on `pull_request`, never `pull_request_target`: PR code must not run
+# with repository secrets. Dependabot PRs are skipped here (they get no secrets on
+# `pull_request` anyway) and are still covered by CI, CodeQL and the security scan.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-  pull_request_target:
-    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions: {}
 
 jobs:
   claude-review:
-    # Human PRs: run on `pull_request`. Dependabot PRs: run on `pull_request_target`
-    # so the workflow has access to `secrets.CLAUDE_CODE_OAUTH_TOKEN` (dependabot PRs
-    # on `pull_request` run with no secrets).
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]') ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]')
-
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write # post the review comment
       issues: read
-      id-token: write
+      id-token: write # claude-code-action authenticates via OIDC
 
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_REPO: ${{ github.repository }}
-      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # For dependabot PRs via pull_request_target, check out the PR head so
-          # Claude reviews the actual proposed changes rather than the base branch.
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
+          persist-credentials: false
 
-      - name: Setup Node
-        if: env.PR_AUTHOR == 'dependabot[bot]'
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - uses: pnpm/action-setup@v6
-        if: env.PR_AUTHOR == 'dependabot[bot]'
-
-      - name: Run Claude Code Review (human PRs)
-        if: env.PR_AUTHOR != 'dependabot[bot]'
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@acfe7992852970efb4fee683d63d628e3e52df67 # v1.0.286
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review $PR_REPO/pull/$PR_NUMBER'
-
-      - name: Run Claude Code Review (dependabot PRs)
-        if: env.PR_AUTHOR == 'dependabot[bot]'
-        id: claude-review-dependabot
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools "Bash(pnpm install:*),Bash(pnpm build:*),Bash(pnpm test:*),Bash(pnpm verify:*),Bash(git diff:*),Bash(git log:*),Bash(cat:*),Bash(ls:*),Bash(gh pr comment:*),Bash(gh pr view:*)"'
-          prompt: |
-            Review the Dependabot PR identified by env vars $PR_REPO and $PR_NUMBER (base branch $PR_BASE_REF).
-
-            Steps:
-            1. Inspect the diff: `gh pr view "$PR_NUMBER" --repo "$PR_REPO"` and `git diff "origin/$PR_BASE_REF"...HEAD`.
-            2. Identify the package(s) and version jump (patch / minor / major). For major bumps, flag potential breaking changes from your knowledge of the package's public changelog.
-            3. Sanity-check that the lockfile change matches the manifest change (no unrelated churn).
-            4. Run `pnpm install --frozen-lockfile` then `pnpm verify`. Capture any failures.
-            5. Post a single PR comment via `gh pr comment "$PR_NUMBER" --repo "$PR_REPO" --body ...` summarizing:
-               - Package + version jump + semver classification
-               - Breaking-change risks worth a human eye
-               - `pnpm verify` result (pass/fail with short excerpt on failure)
-               - Recommendation: safe to merge / needs review / do not merge
-

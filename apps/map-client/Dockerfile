@@ -41,4 +41,6 @@ COPY --from=builder /app/apps/map-client/dist/ /usr/share/nginx/html/
 
 EXPOSE 80
 
+# Accepted until 2027-03-01 (see .trivyignore.yaml): move to nginx-unprivileged.
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["nginx", "-g", "daemon off;"]

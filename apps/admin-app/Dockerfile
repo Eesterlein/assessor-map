@@ -57,4 +57,6 @@ WORKDIR /app/apps/admin-app
 
 EXPOSE 3001
 
+# Run as the image's unprivileged `node` user (uploads go to /tmp only)
+USER node
 CMD ["node", "dist-server/index.js"]

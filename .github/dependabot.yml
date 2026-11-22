@@ -4,15 +4,29 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "docker"
     directory: "/apps/admin-app"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "docker"
     directory: "/apps/map-client"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "docker"
+    directories: ["/apps/firms-poller", "/apps/ingest-service", "/docker/gateway", "/docker/seed"]
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7

@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { Map, Source, Layer, Marker, AttributionControl, type MapRef } from 'react-map-gl/maplibre';
 import { useOgcFeatures, useExport, useHeaderAuthTransformRequest, useVectorSourceLayer } from '@techtraverse/map-ui-lib/hooks';
 import {
@@ -256,7 +256,7 @@ function PreviewGeoJsonLayer({
   if (!layer.styles?.length) return null;
 
   return (
-    <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection}>
+    <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection as unknown as maplibregl.GeoJSONSourceSpecification['data']}>
       {layer.styles.flatMap((style, i) => renderPreviewStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
     </Source>
   );
@@ -1022,7 +1022,7 @@ export function MapPreview({
           for (const [prop, value] of Object.entries(style.paint)) {
             if (ownsDashPaint && DASH_PER_CASE_PAINT_PROPS.includes(prop)) continue;
             try {
-              mapInstance.setPaintProperty(subLayerId, prop, value);
+              mapInstance.setPaintProperty(subLayerId, prop as Parameters<maplibregl.Map['setPaintProperty']>[1], value as Parameters<maplibregl.Map['setPaintProperty']>[2]);
             } catch {
               // Layer may not be added yet
             }

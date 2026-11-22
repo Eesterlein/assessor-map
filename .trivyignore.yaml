@@ -1,0 +1,19 @@
+# Findings accepted on purpose. Each entry needs a reason and an expiry date,
+# after which the scanner reports it again so the decision gets re-reviewed.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - docker/gateway/Dockerfile
+      - apps/map-client/Dockerfile
+    statement: >-
+      nginx containers still run as root. Next step: switch both to
+      nginxinc/nginx-unprivileged (map-client must then listen on 8080 and the
+      gateway upstream must change), tested on a staging copy first.
+    expired_at: 2027-03-01
+  - id: DS-0002
+    paths:
+      - docker/seed/Dockerfile
+    statement: >-
+      One-off data-loading job run by hand during setup; it is not a long-running
+      service and is not reachable from the network.
+    expired_at: 2027-06-01

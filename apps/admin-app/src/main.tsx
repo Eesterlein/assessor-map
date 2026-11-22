@@ -6,6 +6,11 @@ import App from './App';
 import { AuthProvider } from './hooks/AuthContext';
 import { SettingsProvider } from './hooks/SettingsContext';
 import { AutoDetectTipg } from './components/AutoDetectTipg';
+import { setWorkerUrl } from 'maplibre-gl';
+// MapLibre 6 parses tiles in a separate module worker; point it at Vite's bundled copy.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+
+setWorkerUrl(maplibreWorkerUrl);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

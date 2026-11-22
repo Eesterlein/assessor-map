@@ -3,4 +3,6 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 COPY index.js ./
+# Run as the image's unprivileged `node` user
+USER node
 CMD ["node", "index.js"]

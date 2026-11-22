@@ -56,4 +56,7 @@ COPY --from=builder /app/apps/ingest-service/dist/ ./apps/ingest-service/dist/
 
 WORKDIR /app/apps/ingest-service
 EXPOSE 8081
+# Run unprivileged; uploads are staged in /tmp
+RUN adduser -D -H -u 10001 app
+USER app
 CMD ["node", "dist/index.js"]

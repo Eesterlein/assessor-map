@@ -5,6 +5,12 @@ import { getCql2FilteredVectorTileUrl, resolveStyleWithSprites, withDefaultShiel
 import type { CQL2Expression, SourceAuth } from '@techtraverse/map-ui-lib/utils';
 import type { LayerConfig, ImageryLayerConfig } from '@techtraverse/map-ui-lib/types';
 import type { MeasureMode, SelectionMode } from '@techtraverse/map-ui-lib';
+import type { GeoJSONSourceSpecification, Map as MapLibreMap } from 'maplibre-gl';
+
+// MapLibre 6 types are stricter than the app's own GeoJSON / style types.
+type GeoJSONSourceData = GeoJSONSourceSpecification['data'];
+type PaintPropertyName = Parameters<MapLibreMap['setPaintProperty']>[1];
+type PaintPropertyValue = Parameters<MapLibreMap['setPaintProperty']>[2];
 import { useMapStore, useEffectiveCql2Filters } from '../stores/mapStore';
 
 // Inline component for vector tile layers
@@ -94,7 +100,7 @@ function GeoJsonLayer({ layer, sourceUrl, cql2Filter, auth, defaultLabelFont }: 
   }
 
   return (
-    <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection}>
+    <Source id={layer.id} key={layer.id} type="geojson" data={featureCollection as unknown as GeoJSONSourceData}>
       {layer.styles.flatMap((style, i) => renderStyleLayers(style, i, layer.id, layer, undefined, defaultLabelFont))}
     </Source>
   );
@@ -312,7 +318,7 @@ export function MapContainer({ onMouseMove, onMouseLeave, onFeatureClick, onFeat
           for (const [prop, value] of Object.entries(style.paint)) {
             if (ownsDashPaint && DASH_PER_CASE_PAINT_PROPS.includes(prop)) continue;
             try {
-              mapInstance.setPaintProperty(subLayerId, prop, value);
+              mapInstance.setPaintProperty(subLayerId, prop as PaintPropertyName, value as PaintPropertyValue);
             } catch {
               // Layer may not be added yet
             }
